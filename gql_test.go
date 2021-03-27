@@ -66,7 +66,10 @@ func Test_queryAgainstDatabaseExecution(t *testing.T) {
 			is_admin
 		}
 	}`
-	result := Query(query, variables, headers)
+	result, err := Query(query, variables, headers)
+	if err != nil {
+		t.Log("Query execution errored. Is GQL server up?")
+	}
 	expected := `{"tbl_user_group_admins":[{"id":109,"is_admin":1}]}`
 	assert.Equal(expected, string(result), "Query result execution should be equal")
 }

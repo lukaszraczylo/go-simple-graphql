@@ -3,6 +3,7 @@ package gql
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	"github.com/tidwall/gjson"
@@ -36,7 +37,8 @@ func queryBuilder(data string, variables interface{}) []byte {
 	return []byte(compactedBuffer.String())
 }
 
-func Query(query string, variables interface{}, headers map[string]interface{}) string {
+func Query(query string, variables interface{}, headers map[string]interface{}) (string, error) {
+	var err error
 	readyQuery := queryBuilder(query, variables)
 	req := fasthttp.AcquireRequest()
 	req.Header.SetContentType("application/json")
@@ -50,7 +52,7 @@ func Query(query string, variables interface{}, headers map[string]interface{}) 
 
 	res := fasthttp.AcquireResponse()
 	if err := fasthttp.Do(req, res); err != nil {
-		panic("Unable to execute request")
+		return "", err
 	}
 	fasthttp.ReleaseRequest(req)
 
@@ -65,26 +67,8 @@ func Query(query string, variables interface{}, headers map[string]interface{}) 
 	toReturn := gjson.Get(string(body), "data")
 	if toReturn.String() == "" {
 		fmt.Println("Probably not what you expect:", string(body))
+		return string(body), errors.New(fmt.Sprintf("Probably not what you expect: %s", body))
 	}
 	fasthttp.ReleaseResponse(res)
-	return toReturn.String()
+	return toReturn.String(), err
 }
-
-// func main() {
-// headers := map[string]interface{}{
-// 	"x-hasura-user-id":   37,
-// 	"x-hasura-user-uuid": "bde3262e-b42e-4151-ac10-d43fb38f44a5",
-// }
-// variables := map[string]interface{}{
-// 	"UserID":  37,
-// 	"GroupID": 11007,
-// }
-// var query = `query checkifUserIsAdmin($UserID: bigint, $GroupID: bigint) {
-// 	tbl_user_group_admins(where: {is_admin: {_eq: "1"}, user_id: {_eq: $UserID}, group_id: {_eq: $GroupID}}) {
-// 		id
-// 		is_admin
-// 	}
-// }`
-// result := Query(query, variables, headers)
-// fmt.Println(result)
-// }
