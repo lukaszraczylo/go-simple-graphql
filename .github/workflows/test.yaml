@@ -59,7 +59,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tag_name: ${{ github.event.repository.name }}/${{ needs.prepare.outputs.RELEASE_VERSION }}
+          tag_name: v${{ needs.prepare.outputs.RELEASE_VERSION }}
           release_name: v${{ needs.prepare.outputs.RELEASE_VERSION }}
           body: |
             Released automatically after merge to master / main.
