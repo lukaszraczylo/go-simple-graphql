@@ -30,7 +30,6 @@ jobs:
     runs-on: ubuntu-latest
     env:
       CI: true
-      CODECOV
     steps:
       - name: Checkout repo
         uses: actions/checkout@v2
