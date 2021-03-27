@@ -17,29 +17,30 @@ type requestBase struct {
 	Variables interface{} `json:"variables"`
 }
 
-func queryBuilder(data string, variables interface{}) []byte {
+func queryBuilder(data string, variables interface{}) ([]byte, error) {
+	var err error
 	var qb requestBase
 	qb.Query = data
 	qb.Variables = variables
 	j := new(bytes.Buffer)
 	j2, _ := json.Marshal(qb)
 	if err := json.Compact(j, j2); err != nil {
-		fmt.Println(err)
-		panic("Unable to process the query")
+		return []byte{}, errors.New(fmt.Sprintf("Unable to process specified query. Check if it's valid: %s", err.Error()))
 	}
 	// Attemt to decrease size of the generated JSON
 	compactedBuffer := new(bytes.Buffer)
-	err := json.Compact(compactedBuffer, j.Bytes())
+	err = json.Compact(compactedBuffer, j.Bytes())
 	if err != nil {
-		fmt.Println(err)
-		panic("Unable to compress json")
+		return []byte{}, errors.New(fmt.Sprintf("Unable to compress your query: %s", err.Error()))
 	}
-	return []byte(compactedBuffer.String())
+	return []byte(compactedBuffer.String()), err
 }
 
 func Query(query string, variables interface{}, headers map[string]interface{}) (string, error) {
-	var err error
-	readyQuery := queryBuilder(query, variables)
+	readyQuery, err := queryBuilder(query, variables)
+	if err != nil {
+		return "", err
+	}
 	req := fasthttp.AcquireRequest()
 	req.Header.SetContentType("application/json")
 	req.Header.Set("Accept-Encoding", "gzip")

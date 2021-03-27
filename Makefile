@@ -9,7 +9,7 @@ prepare:
 	go get github.com/go-critic/go-critic/cmd/gocritic
 
 test:
-	gocritic check
+	gocritic check -disable=unslice
 	go test -race $(ADDITIONAL_BUILD_FLAGS) -v -coverprofile coverage.txt -covermode=atomic
 
 lint:

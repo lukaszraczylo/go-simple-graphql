@@ -40,8 +40,8 @@ func Test_queryBuilder(t *testing.T) {
 	for _, tt := range tests {
 		assert := assert.New(t)
 		t.Run(tt.name, func(t *testing.T) {
-			gets := string(queryBuilder(tt.args.data, tt.args.variables))
-			assert.Equal(tt.want, gets, fmt.Sprintf("Unexpected query output in test %s", tt.name))
+			gets, _ := queryBuilder(tt.args.data, tt.args.variables)
+			assert.Equal(tt.want, string(gets), fmt.Sprintf("Unexpected query output in test %s", tt.name))
 		},
 		)
 	}
