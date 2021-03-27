@@ -26,7 +26,14 @@ func queryBuilder(data string, variables interface{}) []byte {
 		fmt.Println(err)
 		panic("Unable to process the query")
 	}
-	return j.Bytes()
+	// Attemt to decrease size of the generated JSON
+	compactedBuffer := new(bytes.Buffer)
+	err := json.Compact(compactedBuffer, j.Bytes())
+	if err != nil {
+		fmt.Println(err)
+		panic("Unable to compress json")
+	}
+	return []byte(compactedBuffer.String())
 }
 
 func Query(query string, variables interface{}, headers map[string]interface{}) string {

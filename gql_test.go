@@ -1,38 +1,50 @@
 package gql
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
 
-func Test_simpleQueryBuilder(t *testing.T) {
-	assert := assert.New(t)
-	q := `query listUserBots {
-		tbl_bots {
-    	bot_name
-  	}
-	}`
-	result := queryBuilder(q, nil)
-	expected := `{"query":"query listUserBots {\n\t\ttbl_bots {\n    \tbot_name\n  \t}\n\t}","variables":null}`
-	assert.Equal(expected, string(result), "Produced simple query should be equal")
-}
-
-func Test_advancedQueryBuilder(t *testing.T) {
-	assert := assert.New(t)
-	q := `query checkifUserIsAdmin($UserID: bigint, $GroupID: bigint) {
-		tbl_user_group_admins(where: {is_admin: {_eq: "1"}, user_id: {_eq: $UserID}, group_id: {_eq: $GroupID}}) {
-			id
-			is_admin
-		}
-	}`
-	v := map[string]interface{}{
-		"UserID":  37,
-		"GroupID": 11007,
+func Test_queryBuilder(t *testing.T) {
+	type args struct {
+		data      string
+		variables interface{}
 	}
-	result := queryBuilder(q, v)
-	expected := `{"query":"query checkifUserIsAdmin($UserID: bigint, $GroupID: bigint) {\n\t\ttbl_user_group_admins(where: {is_admin: {_eq: \"1\"}, user_id: {_eq: $UserID}, group_id: {_eq: $GroupID}}) {\n\t\t\tid\n\t\t\tis_admin\n\t\t}\n\t}","variables":{"GroupID":11007,"UserID":37}}`
-	assert.Equal(expected, string(result), "Produced advanced query should be equal")
+	tests := []struct {
+		name string
+		args args
+		want string
+	}{
+		{
+			name: "Simple query",
+			args: args{
+				data:      `query listUserBots { tbl_bots { bot_name } }`,
+				variables: nil,
+			},
+			want: `{"query":"query listUserBots { tbl_bots { bot_name } }","variables":null}`,
+		},
+		{
+			name: "Advanced query",
+			args: args{
+				data: `query checkifUserIsAdmin($UserID: bigint, $GroupID: bigint) { tbl_user_group_admins(where: {is_admin: {_eq: "1"}, user_id: {_eq: $UserID}, group_id: {_eq: $GroupID}}) { id is_admin } }`,
+				variables: map[string]interface{}{
+					"UserID":  37,
+					"GroupID": 11007,
+				},
+			},
+			want: `{"query":"query checkifUserIsAdmin($UserID: bigint, $GroupID: bigint) { tbl_user_group_admins(where: {is_admin: {_eq: \"1\"}, user_id: {_eq: $UserID}, group_id: {_eq: $GroupID}}) { id is_admin } }","variables":{"GroupID":11007,"UserID":37}}`,
+		},
+	}
+	for _, tt := range tests {
+		assert := assert.New(t)
+		t.Run(tt.name, func(t *testing.T) {
+			gets := string(queryBuilder(tt.args.data, tt.args.variables))
+			assert.Equal(tt.want, gets, fmt.Sprintf("Unexpected query output in test %s", tt.name))
+		},
+		)
+	}
 }
 
 func Test_queryAgainstDatabaseExecution(t *testing.T) {

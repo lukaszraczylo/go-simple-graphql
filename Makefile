@@ -9,7 +9,7 @@ prepare:
 	go get -u -v github.com/go-critic/go-critic/cmd/gocritic
 
 test:
-	gocritic check
+	# gocritic check
 	go test $(ADDITIONAL_BUILD_FLAGS) -v -coverprofile cover.out -memprofile mem.out
 
 lint:
