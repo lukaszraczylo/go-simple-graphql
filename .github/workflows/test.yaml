@@ -30,6 +30,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       CI: true
+      CODECOV
     steps:
       - name: Checkout repo
         uses: actions/checkout@v2
@@ -39,6 +40,11 @@ jobs:
           args: |
             make prepare;
             make test CI_RUN=${CI}
+      - name: Codecov integration
+        uses: codecov/codecov-action@v1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: coverage.txt
 
   release:
     name: Create Release

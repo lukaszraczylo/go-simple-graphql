@@ -10,7 +10,7 @@ prepare:
 
 test:
 	gocritic check
-	go test $(ADDITIONAL_BUILD_FLAGS) -v -coverprofile cover.out -memprofile mem.out
+	go test -race $(ADDITIONAL_BUILD_FLAGS) -v -coverprofile coverage.txt -covermode=atomic
 
 lint:
 	go fmt
