@@ -40,18 +40,28 @@ func Query(query string, variables interface{}, headers map[string]interface{}) 
 	readyQuery := queryBuilder(query, variables)
 	req := fasthttp.AcquireRequest()
 	req.Header.SetContentType("application/json")
+	req.Header.Set("Accept-Encoding", "gzip")
 	for header, value := range headers {
 		req.Header.Set(fmt.Sprintf("%v", header), fmt.Sprintf("%v", value))
 	}
 	req.Header.SetMethodBytes([]byte("POST"))
 	req.SetBody(readyQuery)
 	req.SetRequestURI(GraphQLUrl)
+
 	res := fasthttp.AcquireResponse()
 	if err := fasthttp.Do(req, res); err != nil {
 		panic("Unable to execute request")
 	}
 	fasthttp.ReleaseRequest(req)
-	body := res.Body()
+
+	contentEncoding := res.Header.Peek("Content-Encoding")
+	var body []byte
+	if bytes.EqualFold(contentEncoding, []byte("gzip")) {
+		body, _ = res.BodyGunzip()
+	} else {
+		body = res.Body()
+	}
+
 	toReturn := gjson.Get(string(body), "data")
 	if toReturn.String() == "" {
 		fmt.Println("Probably not what you expect:", string(body))
