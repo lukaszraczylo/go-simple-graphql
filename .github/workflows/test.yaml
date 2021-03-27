@@ -1,17 +1,60 @@
-on: push
+name: Test and release
 
-name: Run unit tests
+on:
+  push:
+    branches:
+      - "*"
+
 jobs:
-  checks:
+  prepare:
+    name: Preparing build context
+    runs-on: ubuntu-latest
+    outputs:
+      RELEASE_VERSION: ${{ steps.get_env.outputs.RELEASE_VERSION }}
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: '0'
+      - name: Setting environment variables
+        id: get_env
+        run: |
+          TMP_GITHUB_COMMITS_COUNT=$(git rev-list --count HEAD)
+          TMP_GITHUB_COUNT_NUMBER=$(echo ${GITHUB_RUN_NUMBER})
+          echo "::set-output name=RELEASE_VERSION::1.$TMP_GITHUB_COMMITS_COUNT.$TMP_GITHUB_COUNT_NUMBER"
+
+  tests:
     name: Run unit tests
     runs-on: ubuntu-latest
     env:
       CI: true
     steps:
-    - uses: actions/checkout@master
-    - name: run
-      uses: cedrickring/golang-action@1.6.0
-      with:
-        args: |
-          make prepare
-          make test CI_RUN=${CI}
+      - name: Checkout repo
+        uses: actions/checkout@v2
+      - name: Run unit tests
+        uses: cedrickring/golang-action@1.6.0
+        with:
+          args: |
+            make prepare;
+            make test CI_RUN=${CI}
+
+  release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    needs: [ prepare, tests ]
+    if: ${{ github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main' }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@main
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.event.repository.name }}/${{ needs.prepare.outputs.RELEASE_VERSION }}
+          release_name: v${{ needs.prepare.outputs.RELEASE_VERSION }}
+          body: |
+            Released automatically after merge to master / main.
+          draft: false
+          prerelease: false
