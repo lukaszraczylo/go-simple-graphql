@@ -1,7 +1,6 @@
 package gql
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -40,8 +39,9 @@ func Test_queryBuilder(t *testing.T) {
 	for _, tt := range tests {
 		assert := assert.New(t)
 		t.Run(tt.name, func(t *testing.T) {
-			gets, _ := queryBuilder(tt.args.data, tt.args.variables)
-			assert.Equal(tt.want, string(gets), fmt.Sprintf("Unexpected query output in test %s", tt.name))
+			gets, err := queryBuilder(tt.args.data, tt.args.variables)
+			assert.Equal(tt.want, string(gets), "Unexpected query output in test: "+tt.name)
+			assert.Nil(err)
 		},
 		)
 	}
