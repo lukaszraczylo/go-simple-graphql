@@ -3,6 +3,7 @@ package gql
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	"github.com/tidwall/gjson"
@@ -45,13 +46,13 @@ func Query(query string, variables interface{}, headers map[string]interface{}) 
 	req.SetRequestURI(GraphQLUrl)
 	res := fasthttp.AcquireResponse()
 	if err := fasthttp.Do(req, res); err != nil {
-		panic("Unable to execute request")
+		return "", err
 	}
 	fasthttp.ReleaseRequest(req)
 	body := res.Body()
 	toReturn := gjson.Get(string(body), "data")
 	if toReturn.String() == "" {
-		fmt.Println("Probably not what you expect:", string(body))
+		err = errors.New(string(body))
 		return "", err
 	}
 	fasthttp.ReleaseResponse(res)
