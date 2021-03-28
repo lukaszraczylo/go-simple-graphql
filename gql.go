@@ -3,7 +3,6 @@ package gql
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
 	"fmt"
 
 	"github.com/tidwall/gjson"
@@ -24,52 +23,56 @@ func queryBuilder(data string, variables interface{}) ([]byte, error) {
 	qb.Variables = variables
 	j := new(bytes.Buffer)
 	j2, _ := json.Marshal(qb)
-	if err := json.Compact(j, j2); err != nil {
-		return []byte{}, errors.New(fmt.Sprintf("Unable to process specified query. Check if it's valid: %s", err.Error()))
+	if err = json.Compact(j, j2); err != nil {
+		return []byte{}, err
 	}
-	// Attemt to decrease size of the generated JSON
-	compactedBuffer := new(bytes.Buffer)
-	err = json.Compact(compactedBuffer, j.Bytes())
-	if err != nil {
-		return []byte{}, errors.New(fmt.Sprintf("Unable to compress your query: %s", err.Error()))
-	}
-	return []byte(compactedBuffer.String()), err
+	return j.Bytes(), err
 }
 
 func Query(query string, variables interface{}, headers map[string]interface{}) (string, error) {
+	var err error
 	readyQuery, err := queryBuilder(query, variables)
 	if err != nil {
 		return "", err
 	}
 	req := fasthttp.AcquireRequest()
 	req.Header.SetContentType("application/json")
-	req.Header.Set("Accept-Encoding", "gzip")
 	for header, value := range headers {
 		req.Header.Set(fmt.Sprintf("%v", header), fmt.Sprintf("%v", value))
 	}
 	req.Header.SetMethodBytes([]byte("POST"))
 	req.SetBody(readyQuery)
 	req.SetRequestURI(GraphQLUrl)
-
 	res := fasthttp.AcquireResponse()
 	if err := fasthttp.Do(req, res); err != nil {
-		return "", err
+		panic("Unable to execute request")
 	}
 	fasthttp.ReleaseRequest(req)
-
-	contentEncoding := res.Header.Peek("Content-Encoding")
-	var body []byte
-	if bytes.EqualFold(contentEncoding, []byte("gzip")) {
-		body, _ = res.BodyGunzip()
-	} else {
-		body = res.Body()
-	}
-
+	body := res.Body()
 	toReturn := gjson.Get(string(body), "data")
 	if toReturn.String() == "" {
 		fmt.Println("Probably not what you expect:", string(body))
-		return string(body), errors.New(fmt.Sprintf("Probably not what you expect: %s", body))
+		return "", err
 	}
 	fasthttp.ReleaseResponse(res)
 	return toReturn.String(), err
 }
+
+// func main() {
+// headers := map[string]interface{}{
+// 	"x-hasura-user-id":   37,
+// 	"x-hasura-user-uuid": "bde3262e-b42e-4151-ac10-d43fb38f44a5",
+// }
+// variables := map[string]interface{}{
+// 	"UserID":  37,
+// 	"GroupID": 11007,
+// }
+// var query = `query checkifUserIsAdmin($UserID: bigint, $GroupID: bigint) {
+// 	tbl_user_group_admins(where: {is_admin: {_eq: "1"}, user_id: {_eq: $UserID}, group_id: {_eq: $GroupID}}) {
+// 		id
+// 		is_admin
+// 	}
+// }`
+// result := Query(query, variables, headers)
+// fmt.Println(result)
+// }
