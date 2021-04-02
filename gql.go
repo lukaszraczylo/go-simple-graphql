@@ -9,17 +9,27 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 
+	"github.com/lukaszraczylo/zero"
 	"github.com/tidwall/gjson"
 	"github.com/valyala/fasthttp"
 )
 
 // Endpoint of your GraphQL server to query
+// this variable can be overwritten by setting env variable, for example:
+// GRAPHQL_ENDPOINT=http://hasura.local/v1/graphql
 var GraphQLUrl = "http://127.0.0.1:9090/v1/graphql"
 
 type requestBase struct {
 	Query     string      `json:"query"`
 	Variables interface{} `json:"variables"`
+}
+
+func init() {
+	if !zero.IsZero(os.Getenv("GRAPHQL_ENDPOINT")) {
+		GraphQLUrl = os.Getenv("GRAPHQL_ENDPOINT")
+	}
 }
 
 // queryBuilder takes query data (string) and variables (interface) as a parameter and assembles
