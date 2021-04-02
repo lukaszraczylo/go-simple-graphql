@@ -1,6 +1,7 @@
 package gql
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -72,4 +73,24 @@ func Test_queryAgainstDatabaseExecution(t *testing.T) {
 	}
 	expected := `{"tbl_user_group_admins":[{"id":109,"is_admin":1}]}`
 	assert.Equal(expected, string(result), "Query result execution should be equal")
+}
+
+func ExampleQuery() {
+	variables := map[string]interface{}{
+		"fileHash": "123deadc0w321",
+	}
+	var query = `query searchFileKnown($fileHash: String) {
+		tbl_file_scans(where: {file_hash: {_eq: $fileHash}}) {
+			porn
+			racy
+			violence
+			virus
+		}
+	}`
+	result, err := Query(query, variables, nil)
+	if err != nil {
+		fmt.Println("Query error", err)
+		return
+	}
+	fmt.Println(result)
 }

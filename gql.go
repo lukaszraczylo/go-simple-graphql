@@ -1,3 +1,7 @@
+// Package / library or rather wrapper for GraphQL queries execution in the painless way.
+// Using it is as easy as copy / paste the query itself and set appropriate variables in.
+//
+// Library supports basic error reporting on unsuccessful queries and setting appropriate headers.
 package gql
 
 import (
@@ -10,6 +14,7 @@ import (
 	"github.com/valyala/fasthttp"
 )
 
+// Endpoint of your GraphQL server to query
 var GraphQLUrl = "http://127.0.0.1:9090/v1/graphql"
 
 type requestBase struct {
@@ -17,6 +22,8 @@ type requestBase struct {
 	Variables interface{} `json:"variables"`
 }
 
+// queryBuilder takes query data (string) and variables (interface) as a parameter and assembles
+// graphQL query. It also compacts the JSON result. Function returns query as []byte and error if anything went wrong.
 func queryBuilder(data string, variables interface{}) ([]byte, error) {
 	var err error
 	var qb = &requestBase{
@@ -34,6 +41,10 @@ func queryBuilder(data string, variables interface{}) ([]byte, error) {
 	return j.Bytes(), err
 }
 
+// Query allows you to execute the GraphQL query.
+// Query is a string ( copy paste from Hasura or any other query builder )
+// Variables and Headers are maps of strings ( see the example )
+// Function returns whatever specified query returns and/or error.
 func Query(query string, variables interface{}, headers map[string]interface{}) (string, error) {
 	var err error
 	readyQuery, err := queryBuilder(query, variables)
