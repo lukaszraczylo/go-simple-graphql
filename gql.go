@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/lukaszraczylo/zero"
 	"github.com/tidwall/gjson"
 	"github.com/valyala/fasthttp"
 )
@@ -19,16 +18,19 @@ import (
 // Endpoint of your GraphQL server to query
 // this variable can be overwritten by setting env variable, for example:
 // GRAPHQL_ENDPOINT=http://hasura.local/v1/graphql
-var GraphQLUrl = "http://127.0.0.1:9090/v1/graphql"
+var GraphQLUrl string
 
 type requestBase struct {
 	Query     string      `json:"query"`
 	Variables interface{} `json:"variables"`
 }
 
-func init() {
-	if !zero.IsZero(os.Getenv("GRAPHQL_ENDPOINT")) {
-		GraphQLUrl = os.Getenv("GRAPHQL_ENDPOINT")
+func prepare() {
+	value, present := os.LookupEnv("GRAPHQL_ENDPOINT")
+	if present {
+		GraphQLUrl = value
+	} else {
+		GraphQLUrl = "http://127.0.0.1:9090/v1/graphql"
 	}
 }
 
@@ -56,6 +58,7 @@ func queryBuilder(data string, variables interface{}) ([]byte, error) {
 // Variables and Headers are maps of strings ( see the example )
 // Function returns whatever specified query returns and/or error.
 func Query(query string, variables interface{}, headers map[string]interface{}) (string, error) {
+	prepare()
 	var err error
 	readyQuery, err := queryBuilder(query, variables)
 	if err != nil {

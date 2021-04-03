@@ -2,6 +2,7 @@ package gql
 
 import (
 	"fmt"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -37,8 +38,8 @@ func Test_queryBuilder(t *testing.T) {
 			want: `{"query":"query checkifUserIsAdmin($UserID: bigint, $GroupID: bigint) { tbl_user_group_admins(where: {is_admin: {_eq: \"1\"}, user_id: {_eq: $UserID}, group_id: {_eq: $GroupID}}) { id is_admin } }","variables":{"GroupID":11007,"UserID":37}}`,
 		},
 	}
+	assert := assert.New(t)
 	for _, tt := range tests {
-		assert := assert.New(t)
 		t.Run(tt.name, func(t *testing.T) {
 			gets, err := queryBuilder(tt.args.data, tt.args.variables)
 			assert.Equal(tt.want, string(gets), "Unexpected query output in test: "+tt.name)
@@ -93,4 +94,39 @@ func ExampleQuery() {
 		return
 	}
 	fmt.Println(result)
+}
+
+func Test_initialize(t *testing.T) {
+	tests := []struct {
+		name         string
+		expected     string
+		env_endpoint string
+	}{
+		{
+			name:         "Setting env variable for endpoint",
+			env_endpoint: "hasura.local/v1/graphql",
+			expected:     "hasura.local/v1/graphql",
+		},
+		{
+			name:         "Setting default endpoint",
+			env_endpoint: "",
+			expected:     "http://127.0.0.1:9090/v1/graphql",
+		},
+	}
+	assert := assert.New(t)
+	backupEnv, present := os.LookupEnv("GRAPHQL_ENDPOINT")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.env_endpoint != "" {
+				os.Setenv("GRAPHQL_ENDPOINT", tt.env_endpoint)
+			}
+			t.Log(tt.env_endpoint, os.Getenv("GRAPHQL_ENDPOINT"))
+			prepare()
+			assert.Equal(tt.expected, GraphQLUrl, "Unexpected value of env variable: "+tt.name)
+			os.Unsetenv("GRAPHQL_ENDPOINT")
+		})
+	}
+	if present {
+		os.Setenv("GRAPHQL_ENDPOINT", backupEnv)
+	}
 }
