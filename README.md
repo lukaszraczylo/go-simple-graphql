@@ -1,8 +1,16 @@
 # Simple GraphQL client
 
-[![Run unit tests](https://github.com/lukaszraczylo/simple-gql-client/actions/workflows/test.yaml/badge.svg)](https://github.com/lukaszraczylo/simple-gql-client/actions/workflows/test.yaml) [![codecov](https://codecov.io/gh/lukaszraczylo/simple-gql-client/branch/master/graph/badge.svg?token=GS3IPOIWDH)](https://codecov.io/gh/lukaszraczylo/simple-gql-client)
+[![Run unit tests](https://github.com/lukaszraczylo/simple-gql-client/actions/workflows/test.yaml/badge.svg)](https://github.com/lukaszraczylo/simple-gql-client/actions/workflows/test.yaml) [![codecov](https://codecov.io/gh/lukaszraczylo/simple-gql-client/branch/master/graph/badge.svg?token=GS3IPOIWDH)](https://codecov.io/gh/lukaszraczylo/simple-gql-client) [![Go Reference](https://pkg.go.dev/badge/github.com/lukaszraczylo/simple-gql-client.svg)](https://pkg.go.dev/github.com/lukaszraczylo/simple-gql-client)
 
-It's Hasura friendly.
+Ps. It's Hasura friendly.
+
+- [Simple GraphQL client](#simple-graphql-client)
+  - [Reasoning](#reasoning)
+  - [Features](#features)
+  - [Usage example](#usage-example)
+    - [Setting GraphQL endpoint](#setting-graphql-endpoint)
+    - [Example reader code](#example-reader-code)
+  - [Working with results](#working-with-results)
 
 ## Reasoning
 
@@ -19,30 +27,48 @@ Therefore, I present you the simple client to which you can copy & paste your gr
 
 ## Usage example
 
+### Setting GraphQL endpoint
+
+You can set the endpoint variable within your code
+
+```go
+gql.GraphQLUrl = "http://127.0.0.1:9090/v1/graphql"
+```
+
+or as an environment variable `GRAPHQL_ENDPOINT=http://127.0.0.1:9090/v1/graphql`
+
+### Example reader code
+
+
 ```go
 import (
   fmt
   gql "github.com/lukaszraczylo/simple-gql-client"
 )
 
-// (...)
-
-gql.GraphQLUrl = "http://127.0.0.1:9090/v1/graphql"
-
 headers := map[string]interface{}{
   "x-hasura-user-id":   37,
-  "x-hasura-user-uuid": "bde3262e-b42e-4151-ac10-d43fb38f44a5",
+  "x-hasura-user-uuid": "bde3262e-b42e-4151-ac10-d43f0bef44a5",
 }
+
 variables := map[string]interface{}{
-  "UserID":  37,
-  "GroupID": 11007,
+"fileHash": "123deadc0w321",
 }
-var query = `query checkifUserIsAdmin($UserID: bigint, $GroupID: bigint) {
-  tbl_user_group_admins(where: {is_admin: {_eq: "1"}, user_id: {_eq: $UserID}, group_id: {_eq: $GroupID}}) {
-    id
-    is_admin
+var query = `query searchFileKnown($fileHash: String) {
+  tbl_file_scans(where: {file_hash: {_eq: $fileHash}}) {
+  	porn
+  	racy
+  	violence
+  	virus
   }
 }`
+result, err := Query(query, variables, nil)
+if err != nil {
+  fmt.Println("Query error", err)
+  return
+}
+fmt.Println(result)
+`
 result := Query(query, variables, headers)
 fmt.Println(result)
 ```
