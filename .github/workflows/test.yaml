@@ -13,18 +13,18 @@ jobs:
     name: Preparing build context
     runs-on: ubuntu-latest
     outputs:
-      RELEASE_VERSION: ${{ steps.get_env.outputs.RELEASE_VERSION }}
+      RELEASE_VERSION: ${{ steps.semver.outputs.semantic_version }}
     steps:
       - name: Checkout repo
         uses: actions/checkout@v2
         with:
           fetch-depth: '0'
-      - name: Setting environment variables
-        id: get_env
-        run: |
-          TMP_GITHUB_COMMITS_COUNT=$(git rev-list --count HEAD)
-          TMP_GITHUB_COUNT_NUMBER=$(echo ${GITHUB_RUN_NUMBER})
-          echo "::set-output name=RELEASE_VERSION::1.$TMP_GITHUB_COMMITS_COUNT.$TMP_GITHUB_COUNT_NUMBER"
+      - name: Semver run
+        id: semver
+        uses: lukaszraczylo/semver-generator@v1
+        with:
+          config_file: semver.yaml
+          repository_local: true
 
   tests:
     name: Run unit tests
