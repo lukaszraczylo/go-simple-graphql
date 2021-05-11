@@ -68,9 +68,9 @@ func Query(query string, variables interface{}, headers map[string]interface{}) 
 	defer fasthttp.ReleaseRequest(req)
 	req.Header.SetContentType("application/json")
 	for header, value := range headers {
-		req.Header.Set(fmt.Sprintf("%v", header), fmt.Sprintf("%v", value))
+		req.Header.Add(fmt.Sprintf("%v", header), fmt.Sprintf("%v", value))
 	}
-	req.Header.SetMethodBytes([]byte("POST"))
+	req.Header.SetMethod("POST")
 	req.SetBody(readyQuery)
 	req.SetRequestURI(GraphQLUrl)
 	res := fasthttp.AcquireResponse()

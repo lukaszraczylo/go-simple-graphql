@@ -1,0 +1,17 @@
+version: 1
+force:
+  major: 1
+  minor: 22
+  patch: 38
+  commit: 4508a46ac5bf8fc5fb264fbb0de58d3b8827ba2d
+wording:
+  patch:
+    - patch
+    - hotfix
+    - update
+    - initial
+  minor:
+    - change
+    - improve
+  major:
+    - breaking

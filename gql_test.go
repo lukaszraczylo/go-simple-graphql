@@ -29,13 +29,13 @@ func Test_queryBuilder(t *testing.T) {
 		{
 			name: "Advanced query",
 			args: args{
-				data: `query checkifUserIsAdmin($UserID: bigint, $GroupID: bigint) { tbl_user_group_admins(where: {is_admin: {_eq: "1"}, user_id: {_eq: $UserID}, group_id: {_eq: $GroupID}}) { id is_admin } }`,
+				data: `query checkifUserIsAdmin($UserID: bigint, $GroupID: bigint) { tbl_user_group_admins(where: {is_admin: {_eq: true}, user_id: {_eq: $UserID}, group_id: {_eq: $GroupID}}) { id is_admin } }`,
 				variables: map[string]interface{}{
 					"UserID":  37,
 					"GroupID": 11007,
 				},
 			},
-			want: `{"query":"query checkifUserIsAdmin($UserID: bigint, $GroupID: bigint) { tbl_user_group_admins(where: {is_admin: {_eq: \"1\"}, user_id: {_eq: $UserID}, group_id: {_eq: $GroupID}}) { id is_admin } }","variables":{"GroupID":11007,"UserID":37}}`,
+			want: `{"query":"query checkifUserIsAdmin($UserID: bigint, $GroupID: bigint) { tbl_user_group_admins(where: {is_admin: {_eq: true}, user_id: {_eq: $UserID}, group_id: {_eq: $GroupID}}) { id is_admin } }","variables":{"GroupID":11007,"UserID":37}}`,
 		},
 	}
 	assert := assert.New(t)
@@ -57,13 +57,14 @@ func Test_queryAgainstDatabaseExecution(t *testing.T) {
 	headers := map[string]interface{}{
 		"x-hasura-user-id":   37,
 		"x-hasura-user-uuid": "bde3262e-b42e-4151-ac10-d43fb38f44a5",
+		"Authorization":      "bearer LaPotatoDiBanani",
 	}
 	variables := map[string]interface{}{
 		"UserID":  37,
 		"GroupID": 11007,
 	}
 	var query = `query checkifUserIsAdmin($UserID: bigint, $GroupID: bigint) {
-		tbl_user_group_admins(where: {is_admin: {_eq: "1"}, user_id: {_eq: $UserID}, group_id: {_eq: $GroupID}}) {
+		tbl_user_group_admins(where: {is_admin: {_eq: true}, user_id: {_eq: $UserID}, group_id: {_eq: $GroupID}}) {
 			id
 			is_admin
 		}
@@ -72,7 +73,7 @@ func Test_queryAgainstDatabaseExecution(t *testing.T) {
 	if err != nil {
 		t.Log("Query execution errored. Is GQL server up?")
 	}
-	expected := `{"tbl_user_group_admins":[{"id":109,"is_admin":1}]}`
+	expected := `{"tbl_user_group_admins":[{"id":109,"is_admin":true}]}`
 	assert.Equal(expected, string(result), "Query result execution should be equal")
 }
 
@@ -111,6 +112,11 @@ func Test_initialize(t *testing.T) {
 			name:         "Setting default endpoint",
 			env_endpoint: "",
 			expected:     "http://127.0.0.1:9090/v1/graphql",
+		},
+		{
+			name:         "Setting custom endpoint",
+			env_endpoint: "http://127.0.0.1:8080/v1/graphql",
+			expected:     "http://127.0.0.1:8080/v1/graphql",
 		},
 	}
 	assert := assert.New(t)
