@@ -28,11 +28,7 @@ type requestBase struct {
 func prepare() {
 	value, present := os.LookupEnv("GRAPHQL_ENDPOINT")
 	if GraphQLUrl == "" && present {
-		if present {
-			GraphQLUrl = value
-		} else {
-			GraphQLUrl = "http://127.0.0.1:8080/v1/graphql"
-		}
+		GraphQLUrl = value
 	} else if GraphQLUrl == "" && !present {
 		GraphQLUrl = "http://127.0.0.1:9090/v1/graphql"
 	}
