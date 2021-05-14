@@ -2,13 +2,36 @@ package gql
 
 import (
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/suite"
 )
 
-func Test_queryBuilder(t *testing.T) {
+type TestSuite struct {
+	suite.Suite
+}
+
+func (suite *TestSuite) SetupTest() {
+	os.Unsetenv("GRAPHQL_ENDPOINT")
+}
+
+func TestSuiteRun(t *testing.T) {
+	suite.Run(t, new(TestSuite))
+}
+
+func mockGraphQLServerResponses(responseQuery string) *httptest.Server {
+	server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+		rw.Write([]byte(responseQuery))
+	}))
+	GraphQLUrl = server.URL + "/v1/graphql"
+	return server
+}
+
+func (suite *TestSuite) Test_queryBuilder() {
 	type args struct {
 		data      string
 		variables interface{}
@@ -38,23 +61,23 @@ func Test_queryBuilder(t *testing.T) {
 			want: `{"query":"query checkifUserIsAdmin($UserID: bigint, $GroupID: bigint) { tbl_user_group_admins(where: {is_admin: {_eq: true}, user_id: {_eq: $UserID}, group_id: {_eq: $GroupID}}) { id is_admin } }","variables":{"GroupID":11007,"UserID":37}}`,
 		},
 	}
-	GraphQLUrl = "http://hasura.local/v1/graphql"
-	assert := assert.New(t)
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+		suite.T().Run(tt.name, func(t *testing.T) {
 			gets, err := queryBuilder(tt.args.data, tt.args.variables)
-			assert.Equal(tt.want, string(gets), "Unexpected query output in test: "+tt.name)
-			assert.Nil(err)
+			assert.Equal(suite.T(), tt.want, string(gets), "Unexpected query output in test: "+tt.name)
+			assert.Nil(suite.T(), err)
 		},
 		)
 	}
 }
 
-func Test_queryAgainstDatabaseExecution(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping test in short / CI mode")
-	}
-	assert := assert.New(t)
+func (suite *TestSuite) Test_queryAgainstDatabaseExecution() {
+	os.Unsetenv("GRAPHQL_ENDPOINT")
+	jsonResponse := `{
+		"data": {"tbl_user_group_admins":[{"id":109,"is_admin":true}]}
+	}`
+	server := mockGraphQLServerResponses(jsonResponse)
+	defer server.Close()
 	headers := map[string]interface{}{
 		"x-hasura-user-id":   37,
 		"x-hasura-user-uuid": "bde3262e-b42e-4151-ac10-d43fb38f44a5",
@@ -70,13 +93,12 @@ func Test_queryAgainstDatabaseExecution(t *testing.T) {
 			is_admin
 		}
 	}`
-	GraphQLUrl = "http://hasura.local/v1/graphql"
 	result, err := Query(query, variables, headers)
 	if err != nil {
-		t.Log("Query execution errored. Is GQL server up?")
+		suite.T().Log("Query execution errored. Is GQL server up?")
 	}
 	expected := `{"tbl_user_group_admins":[{"id":109,"is_admin":true}]}`
-	assert.Equal(expected, string(result), "Query result execution should be equal")
+	assert.Equal(suite.T(), expected, string(result), "Query result execution should be equal")
 }
 
 func ExampleQuery() {
@@ -99,7 +121,7 @@ func ExampleQuery() {
 	fmt.Println(result)
 }
 
-func Test_initialize(t *testing.T) {
+func (suite *TestSuite) Test_initialize() {
 	tests := []struct {
 		name           string
 		expected       string
@@ -133,10 +155,9 @@ func Test_initialize(t *testing.T) {
 			expected:       "hasura-def.local/v1/graphql",
 		},
 	}
-	assert := assert.New(t)
 	backupEnv, present := os.LookupEnv("GRAPHQL_ENDPOINT")
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+		suite.T().Run(tt.name, func(t *testing.T) {
 			os.Unsetenv("GRAPHQL_ENDPOINT")
 			GraphQLUrl = ""
 			if tt.env_endpoint != "" {
@@ -148,8 +169,7 @@ func Test_initialize(t *testing.T) {
 				GraphQLUrl = tt.local_endpoint
 			}
 			prepare()
-			assert.Equal(tt.expected, GraphQLUrl, "Unexpected value of env variable: "+tt.name)
-			os.Unsetenv("GRAPHQL_ENDPOINT")
+			assert.Equal(suite.T(), tt.expected, GraphQLUrl, "Unexpected value of env variable: "+tt.name)
 		})
 	}
 	if present {
