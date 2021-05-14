@@ -11,7 +11,7 @@ prepare:
 	gocritic check
 
 test: lint tidy
-	GOPRIVATE=$(SET_PRIVATE) go test -race $(ADDITIONAL_BUILD_FLAGS)
+	GOPRIVATE=$(SET_PRIVATE) go test -race $(ADDITIONAL_BUILD_FLAGS) -cover
 
 lint:
 	go fmt
