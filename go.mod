@@ -6,6 +6,7 @@ require (
 	github.com/andybalholm/brotli v1.0.2 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/klauspost/compress v1.12.2 // indirect
+	github.com/lukaszraczylo/zero v0.0.0-20160322155811-4a4535dd56e7
 	github.com/stretchr/testify v1.7.0
 	github.com/tidwall/gjson v1.8.0
 	github.com/valyala/fasthttp v1.24.0

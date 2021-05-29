@@ -146,8 +146,8 @@ func (suite *TestSuite) Test_initialize() {
 		},
 		{
 			name:           "Setting custom endpoint (VAR)",
-			local_endpoint: "http://127.0.0.1:8080/v1/graphql",
-			expected:       "http://127.0.0.1:8080/v1/graphql",
+			local_endpoint: "http://127.0.0.1:8090/v1/graphql",
+			expected:       "http://127.0.0.1:8090/v1/graphql",
 		},
 		{
 			name:           "Setting custom endpoint (VAR)",

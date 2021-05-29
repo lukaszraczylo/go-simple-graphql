@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/lukaszraczylo/zero"
 	"github.com/tidwall/gjson"
 	"github.com/valyala/fasthttp"
 )
@@ -27,10 +28,12 @@ type requestBase struct {
 
 func prepare() {
 	value, present := os.LookupEnv("GRAPHQL_ENDPOINT")
-	if GraphQLUrl == "" && present {
+	if present {
 		GraphQLUrl = value
-	} else if GraphQLUrl == "" && !present {
+	} else if zero.IsZero(GraphQLUrl) && !present {
 		GraphQLUrl = "http://127.0.0.1:9090/v1/graphql"
+	} else {
+		fmt.Println("GraphQL endpoint not set.")
 	}
 }
 
