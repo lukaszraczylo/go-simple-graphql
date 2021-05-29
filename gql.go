@@ -30,8 +30,9 @@ func prepare() {
 	value, present := os.LookupEnv("GRAPHQL_ENDPOINT")
 	if present {
 		GraphQLUrl = value
-	} else if zero.IsZero(GraphQLUrl) && !present {
+	} else if !present && zero.IsZero(GraphQLUrl) {
 		GraphQLUrl = "http://127.0.0.1:9090/v1/graphql"
+		fmt.Println("Setting default endpoint", GraphQLUrl)
 	} else {
 		fmt.Println("GraphQL endpoint not set.")
 	}
