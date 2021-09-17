@@ -7,6 +7,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/lukaszraczylo/pandati"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
 )
@@ -160,11 +161,11 @@ func (suite *TestSuite) Test_initialize() {
 		suite.T().Run(tt.name, func(t *testing.T) {
 			os.Unsetenv("GRAPHQL_ENDPOINT")
 			GraphQLUrl = ""
-			if tt.env_endpoint != "" {
+			if !pandati.IsZero(tt.env_endpoint) {
 				os.Setenv("GRAPHQL_ENDPOINT", tt.env_endpoint)
 				t.Log(tt.env_endpoint, os.Getenv("GRAPHQL_ENDPOINT"))
 			}
-			if tt.local_endpoint != "" {
+			if !pandati.IsZero(tt.local_endpoint) {
 				os.Unsetenv("GRAPHQL_ENDPOINT")
 				GraphQLUrl = tt.local_endpoint
 			}

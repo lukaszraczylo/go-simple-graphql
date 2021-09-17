@@ -11,7 +11,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/lukaszraczylo/zero"
+	"github.com/lukaszraczylo/pandati"
 	"github.com/tidwall/gjson"
 	"github.com/valyala/fasthttp"
 )
@@ -30,7 +30,7 @@ func prepare() {
 	value, present := os.LookupEnv("GRAPHQL_ENDPOINT")
 	if present {
 		GraphQLUrl = value
-	} else if !present && zero.IsZero(GraphQLUrl) {
+	} else if !present && pandati.IsZero(GraphQLUrl) {
 		GraphQLUrl = "http://127.0.0.1:9090/v1/graphql"
 		fmt.Println("Setting default endpoint", GraphQLUrl)
 	} else {
