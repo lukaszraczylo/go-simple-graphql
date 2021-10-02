@@ -1,92 +1,61 @@
-// Package / library or rather wrapper for GraphQL queries execution in the painless way.
-// Using it is as easy as copy / paste the query itself and set appropriate variables in.
+// Package go-simple-graphql is a wrapper for GraphQL queries execution.
+// It's sole purpose is to allow developer to execute queries without specific fields / types mapping
+// which can be really confusing and even impossible whilst dealing with Hasura custom generated types.
 //
-// Library supports basic error reporting on unsuccessful queries and setting appropriate headers.
+// Library supports advanced error reporting on unsuccessful queries.
+// Library also uses HTTP2 for communication with GraphQL API if it's supported by server
+
+// Environment variables:
+// GRAPHQL_ENDPOINT - GraphQL endpoint to use. Default: http://127.0.0.1:9090/v1/graphql
+// LOG_LEVEL - Log level to use. Default: INFO
+//	 					 Available log levels: DEBUG, INFO, WARN, ERROR, FATAL
+
 package gql
 
 import (
-	"bytes"
-	"encoding/json"
-	"errors"
+	"crypto/tls"
 	"fmt"
+	"net"
+	"net/http"
 	"os"
 
-	"github.com/lukaszraczylo/pandati"
-	"github.com/tidwall/gjson"
-	"github.com/valyala/fasthttp"
+	jsoniter "github.com/json-iterator/go"
+	"github.com/lukaszraczylo/go-simple-graphql/pkg/logging"
+	"golang.org/x/net/http2"
 )
 
-// Endpoint of your GraphQL server to query
-// this variable can be overwritten by setting env variable, for example:
-// GRAPHQL_ENDPOINT=http://hasura.local/v1/graphql
-var GraphQLUrl string
+var (
+	json = jsoniter.ConfigCompatibleWithStandardLibrary
+)
 
-type requestBase struct {
-	Query     string      `json:"query"`
-	Variables interface{} `json:"variables"`
+type connHandler struct {
+	Endpoint   string
+	HttpClient *http.Client
+	Log        *logging.LogConfig
 }
 
-func prepare() {
+func pickGraphqlEndpoint() (graphqlEndpoint string) {
 	value, present := os.LookupEnv("GRAPHQL_ENDPOINT")
-	if present {
-		GraphQLUrl = value
-	} else if !present && pandati.IsZero(GraphQLUrl) {
-		GraphQLUrl = "http://127.0.0.1:9090/v1/graphql"
-		fmt.Println("Setting default endpoint", GraphQLUrl)
+	if present && value != "" {
+		graphqlEndpoint = value
 	} else {
-		fmt.Println("GraphQL endpoint not set.")
+		graphqlEndpoint = "http://127.0.0.1:9090/v1/graphql"
+		fmt.Println("Setting default endpoint", graphqlEndpoint)
 	}
+	return graphqlEndpoint
 }
 
-// queryBuilder takes query data (string) and variables (interface) as a parameter and assembles
-// graphQL query. It also compacts the JSON result. Function returns query as []byte and error if anything went wrong.
-func queryBuilder(data string, variables interface{}) ([]byte, error) {
-	var err error
-	var qb = &requestBase{
-		Query:     data,
-		Variables: variables,
+func NewConnection() *connHandler {
+	return &connHandler{
+		Endpoint: pickGraphqlEndpoint(),
+		HttpClient: &http.Client{
+			Transport: &http2.Transport{
+				AllowHTTP: true,
+				DialTLS: func(network, addr string, cfg *tls.Config) (net.Conn, error) {
+					return net.Dial(network, addr)
+				},
+			},
+		},
+		Log: logging.NewLogger(),
 	}
-	j := new(bytes.Buffer)
-	j2, err := json.Marshal(qb)
-	if err != nil {
-		return []byte{}, err
-	}
-	if err = json.Compact(j, j2); err != nil {
-		return []byte{}, err
-	}
-	return j.Bytes(), err
-}
-
-// Query allows you to execute the GraphQL query.
-// Query is a string ( copy paste from Hasura or any other query builder )
-// Variables and Headers are maps of strings ( see the example )
-// Function returns whatever specified query returns and/or error.
-func Query(query string, variables interface{}, headers map[string]interface{}) (string, error) {
-	prepare()
-	var err error
-	readyQuery, err := queryBuilder(query, variables)
-	if err != nil {
-		return "", err
-	}
-	req := fasthttp.AcquireRequest()
-	defer fasthttp.ReleaseRequest(req)
-	req.Header.SetContentType("application/json")
-	for header, value := range headers {
-		req.Header.Add(fmt.Sprintf("%v", header), fmt.Sprintf("%v", value))
-	}
-	req.Header.SetMethod("POST")
-	req.SetBody(readyQuery)
-	req.SetRequestURI(GraphQLUrl)
-	res := fasthttp.AcquireResponse()
-	defer fasthttp.ReleaseResponse(res)
-	if err := fasthttp.Do(req, res); err != nil {
-		return "", err
-	}
-	body := res.Body()
-	toReturn := gjson.Get(string(body), "data")
-	if toReturn.String() == "" {
-		err = errors.New(string(body))
-		return "", err
-	}
-	return toReturn.String(), err
 }

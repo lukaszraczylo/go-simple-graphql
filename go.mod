@@ -1,14 +1,22 @@
-module github.com/lukaszraczylo/simple-gql-client
+module github.com/lukaszraczylo/go-simple-graphql
 
-go 1.16
+go 1.17
 
 require (
-	github.com/andybalholm/brotli v1.0.3 // indirect
-	github.com/davecgh/go-spew v1.1.1 // indirect
-	github.com/klauspost/compress v1.13.6 // indirect
-	github.com/lukaszraczylo/pandati v0.0.10 // indirect
+	github.com/buger/jsonparser v1.1.1
+	github.com/json-iterator/go v1.1.12
+	github.com/lukaszraczylo/pandati v0.0.10
+	github.com/rs/zerolog v1.25.0
 	github.com/stretchr/testify v1.7.0
-	github.com/tidwall/gjson v1.9.1
-	github.com/valyala/fasthttp v1.30.0
-	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b // indirect
+	golang.org/x/net v0.0.0-20210929193557-e81a3d93ecf6
+)
+
+require (
+	github.com/davecgh/go-spew v1.1.1 // indirect
+	github.com/imdario/mergo v0.3.12 // indirect
+	github.com/modern-go/concurrent v0.0.0-20180228061459-e0a39a4cb421 // indirect
+	github.com/modern-go/reflect2 v1.0.2 // indirect
+	github.com/pmezard/go-difflib v1.0.0 // indirect
+	golang.org/x/text v0.3.6 // indirect
+	gopkg.in/yaml.v3 v3.0.0-20200313102051-9f266ea9e77c // indirect
 )

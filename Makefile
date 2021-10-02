@@ -1,26 +1,21 @@
 CI_RUN?=false
 ADDITIONAL_BUILD_FLAGS=""
-SET_PRIVATE="github.com/telegram-bot-app/*"
 
 ifeq ($(CI_RUN), true)
-	ADDITIONAL_BUILD_FLAGS="-test.short"
+	ADDITIONAL_BUILD_FLAGS="-test.local_endpoint"
 endif
 
-prepare:
-	GOPRIVATE=$(SET_PRIVATE) go get github.com/go-critic/go-critic/cmd/gocritic
-	gocritic check
+.PHONY: help
+help:  ## display this help
+	@awk 'BEGIN {FS = ":.*##"; printf "\nUsage:\n  make \033[36m<target>\033[0m\n\nTargets:\n"} /^[a-zA-Z0-9_-]+:.*?##/ { printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
 
-test: lint tidy
-	GOPRIVATE=$(SET_PRIVATE) go test -race $(ADDITIONAL_BUILD_FLAGS) -cover -coverprofile=coverage.out
+.PHONY: test
+test: ## run tests on library
+	@go test $(ADDITIONAL_BUILD_FLAGS) -v -cover ./...
 
-lint:
-	go fmt
+.PHONY: test-packages
+test-packages: ## run tests on packages
+	@go test -v -cover ./pkg/...
 
-readme:
-	godocdown > README.md
-
-update:
-	GOPRIVATE=$(SET_PRIVATE) go get -u ./...
-
-tidy:
-	GOPRIVATE=$(SET_PRIVATE) go mod tidy
+.PHONY: all
+all: test-packages test
