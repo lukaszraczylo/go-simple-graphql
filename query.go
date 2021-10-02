@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"io"
 	"io/ioutil"
+	"net/http"
 
 	"github.com/lukaszraczylo/pandati"
 )
@@ -21,7 +23,7 @@ type queryResults struct {
 	} `json:"errors"`
 }
 
-func (g *connHandler) queryBuilder(queryContent string, queryVariables interface{}) ([]byte, error) {
+func (g *GraphQL) queryBuilder(queryContent string, queryVariables interface{}) ([]byte, error) {
 	var qb = &requestBase{
 		Query:     queryContent,
 		Variables: queryVariables,
@@ -40,18 +42,25 @@ func (g *connHandler) queryBuilder(queryContent string, queryVariables interface
 	return j2, err
 }
 
-func (g *connHandler) Query(queryContent string, queryVariables interface{}) (responseContent string, err error) {
+func (g *GraphQL) Query(queryContent string, queryVariables interface{}, queryHeaders map[string]interface{}) (responseContent string, err error) {
 	g.Log.Debug("Query details", map[string]interface{}{"_query": queryContent, "_variables": queryVariables})
 	query, err := g.queryBuilder(queryContent, queryVariables)
 	if err != nil {
 		g.Log.Error("Unable to build the query", map[string]interface{}{"_error": err.Error()})
 		return "", err
 	}
-	httpResponse, err := g.HttpClient.Post(g.Endpoint, "application/json", bytes.NewBuffer(query))
+	httpRequest, err := http.NewRequest("POST", g.Endpoint, bytes.NewBuffer(query))
+	httpRequest.Header.Add("Content-Type", "application/json")
+	for header, value := range queryHeaders {
+		httpRequest.Header.Add(fmt.Sprintf("%v", header), fmt.Sprintf("%v", value))
+	}
+
+	httpResponse, err := g.HttpClient.Do(httpRequest)
 	if err != nil {
 		g.Log.Error("Unable to send the query", map[string]interface{}{"_error": err.Error()})
 		return "", err
 	}
+	defer io.Copy(ioutil.Discard, httpResponse.Body)
 	defer httpResponse.Body.Close()
 
 	body, err := ioutil.ReadAll(httpResponse.Body)
@@ -68,7 +77,7 @@ func (g *connHandler) Query(queryContent string, queryVariables interface{}) (re
 
 	if !pandati.IsZero(queryResult.Errors) {
 		g.Log.Error("Query returned error", map[string]interface{}{"_query": queryContent, "_variables": queryVariables, "_error": fmt.Sprintf("%v", queryResult.Errors)})
-		return "", errors.New(fmt.Sprintf("%v", queryResult.Errors[0].Message))
+		return "", fmt.Errorf("%v", queryResult.Errors[0].Message)
 	}
 
 	if pandati.IsZero(queryResult.Data) {

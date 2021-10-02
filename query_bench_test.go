@@ -4,7 +4,7 @@ import (
 	"testing"
 )
 
-func Benchmark_connHandler_Query(t *testing.B) {
+func Benchmark_GraphQL_Query(t *testing.B) {
 	type args struct {
 		queryContent   string
 		queryVariables interface{}
@@ -58,7 +58,7 @@ func Benchmark_connHandler_Query(t *testing.B) {
 			server, serverURL := mockGraphQLServerResponses(tt.mockedReply)
 			g.Endpoint = serverURL
 			for n := 0; n < t.N; n++ {
-				g.Query(tt.args.queryContent, tt.args.queryVariables)
+				g.Query(tt.args.queryContent, tt.args.queryVariables, nil)
 			}
 			server.Close()
 		})

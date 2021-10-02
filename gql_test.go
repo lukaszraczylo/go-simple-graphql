@@ -33,26 +33,25 @@ func TestSuiteRun(t *testing.T) {
 func (suite *TestSuite) TestNewConnection() {
 	type args struct {
 		endpoint string
-		debug    bool
 	}
 	tests := []struct {
 		name string
 		args args
-		want *connHandler
+		want *GraphQL
 	}{
 		{
 			name: "New connection: Env variable endpoint",
 			args: args{
 				endpoint: "http://localhost:8080/graphql",
 			},
-			want: &connHandler{
+			want: &GraphQL{
 				Endpoint: "http://localhost:8080/graphql",
 			},
 		},
 		{
 			name: "New connection: No env variable endpoint",
 			args: args{},
-			want: &connHandler{
+			want: &GraphQL{
 				Endpoint: "http://127.0.0.1:9090/v1/graphql",
 			},
 		},

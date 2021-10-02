@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func (suite *TestSuite) Test_connHandler_queryBuilder() {
+func (suite *TestSuite) Test_GraphQL_queryBuilder() {
 	type args struct {
 		queryContent   string
 		queryVariables interface{}
@@ -49,7 +49,7 @@ func (suite *TestSuite) Test_connHandler_queryBuilder() {
 	}
 }
 
-func (suite *TestSuite) Test_connHandler_Query() {
+func (suite *TestSuite) Test_GraphQL_Query() {
 	type args struct {
 		queryContent   string
 		queryVariables interface{}
@@ -99,7 +99,7 @@ func (suite *TestSuite) Test_connHandler_Query() {
 				os.Setenv("GRAPHQL_ENDPOINT", tt.endpoint)
 			}
 			g := NewConnection()
-			gotResult, gotErr := g.Query(tt.args.queryContent, tt.args.queryVariables)
+			gotResult, gotErr := g.Query(tt.args.queryContent, tt.args.queryVariables, nil)
 			if tt.wantErr {
 				assert.Error(t, gotErr)
 			}

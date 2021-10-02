@@ -28,7 +28,7 @@ var (
 	json = jsoniter.ConfigCompatibleWithStandardLibrary
 )
 
-type connHandler struct {
+type GraphQL struct {
 	Endpoint   string
 	HttpClient *http.Client
 	Log        *logging.LogConfig
@@ -45,12 +45,13 @@ func pickGraphqlEndpoint() (graphqlEndpoint string) {
 	return graphqlEndpoint
 }
 
-func NewConnection() *connHandler {
-	return &connHandler{
+func NewConnection() *GraphQL {
+	return &GraphQL{
 		Endpoint: pickGraphqlEndpoint(),
 		HttpClient: &http.Client{
 			Transport: &http2.Transport{
-				AllowHTTP: true,
+				DisableCompression: true,
+				AllowHTTP:          true,
 				DialTLS: func(network, addr string, cfg *tls.Config) (net.Conn, error) {
 					return net.Dial(network, addr)
 				},

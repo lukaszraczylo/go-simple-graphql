@@ -1,6 +1,7 @@
 package logging
 
 import (
+	"fmt"
 	stdlog "log"
 	"os"
 	"time"
@@ -65,8 +66,8 @@ func log(contextLog *zerolog.Event, message string, v ...map[string]interface{})
 	if len(v) > 0 {
 		for _, m := range v {
 			for k, v := range m {
-				if !pandati.IsZero(v) {
-					contextLog.Str(k, v.(string))
+				if !pandati.IsZero(v) && !pandati.IsZero(k) {
+					contextLog.Str(k, fmt.Sprintf("%v", v))
 				}
 			}
 		}

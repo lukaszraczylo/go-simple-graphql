@@ -8,7 +8,7 @@ Ps. It's Hasura friendly.
   - [Reasoning](#reasoning)
   - [Features](#features)
   - [Usage example](#usage-example)
-    - [Setting GraphQL endpoint](#setting-graphql-endpoint)
+    - [Environment variables](#environment-variables)
     - [Example reader code](#example-reader-code)
   - [Working with results](#working-with-results)
 
@@ -27,15 +27,10 @@ Therefore, I present you the simple client to which you can copy & paste your gr
 
 ## Usage example
 
-### Setting GraphQL endpoint
+### Environment variables
 
-You can set the endpoint variable within your code
-
-```go
-gql.GraphQLUrl = "http://127.0.0.1:9090/v1/graphql"
-```
-
-or as an environment variable `GRAPHQL_ENDPOINT=http://127.0.0.1:9090/v1/graphql`
+* `GRAPHQL_ENDPOINT` - Your GraphQL endpoint. Default: `http://127.0.0.1:9090/v1/graphql`
+* `LOG_LEVEL` - Logging level. Default: `info`
 
 ### Example reader code
 
