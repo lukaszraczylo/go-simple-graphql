@@ -18,6 +18,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"time"
 
 	jsoniter "github.com/json-iterator/go"
 	"github.com/lukaszraczylo/go-simple-graphql/pkg/logging"
@@ -49,8 +50,9 @@ func NewConnection() *GraphQL {
 	return &GraphQL{
 		Endpoint: pickGraphqlEndpoint(),
 		HttpClient: &http.Client{
+			Timeout: time.Second * 10,
 			Transport: &http2.Transport{
-				DisableCompression: true,
+				DisableCompression: false,
 				AllowHTTP:          true,
 				DialTLS: func(network, addr string, cfg *tls.Config) (net.Conn, error) {
 					return net.Dial(network, addr)

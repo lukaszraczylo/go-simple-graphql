@@ -21,9 +21,8 @@ Therefore, I present you the simple client to which you can copy & paste your gr
 ## Features
 
 * Executing GraphQL queries as they are, without types declaration
-* Compressing produced queries
+* HTTP2 support!
 * Support for additional headers
-* Support for gzip compression ( built into Hasura )
 
 ## Usage example
 
@@ -56,15 +55,14 @@ var query = `query searchFileKnown($fileHash: String) {
   	violence
   	virus
   }
-}`
-result, err := Query(query, variables, nil)
+}
+
+graphql := NewConnection()
+result, err := graphql.Query(query, variables, nil)
 if err != nil {
   fmt.Println("Query error", err)
   return
 }
-fmt.Println(result)
-`
-result := Query(query, variables, headers)
 fmt.Println(result)
 ```
 
