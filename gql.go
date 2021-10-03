@@ -50,7 +50,7 @@ func NewConnection() *GraphQL {
 	return &GraphQL{
 		Endpoint: pickGraphqlEndpoint(),
 		HttpClient: &http.Client{
-			Timeout: time.Second * 10,
+			Timeout: time.Second * 30,
 			Transport: &http2.Transport{
 				DisableCompression: false,
 				AllowHTTP:          true,
