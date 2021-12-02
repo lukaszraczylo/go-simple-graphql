@@ -2,7 +2,7 @@ CI_RUN?=false
 ADDITIONAL_BUILD_FLAGS=""
 
 ifeq ($(CI_RUN), true)
-	ADDITIONAL_BUILD_FLAGS="-test.local_endpoint"
+	ADDITIONAL_BUILD_FLAGS="-test.short"
 endif
 
 .PHONY: help

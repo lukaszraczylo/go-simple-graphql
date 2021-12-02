@@ -8,6 +8,7 @@ import (
 )
 
 func (suite *TestSuite) Test_GraphQL_queryBuilder() {
+
 	type args struct {
 		queryContent   string
 		queryVariables interface{}
@@ -50,6 +51,9 @@ func (suite *TestSuite) Test_GraphQL_queryBuilder() {
 }
 
 func (suite *TestSuite) Test_GraphQL_Query() {
+	if testing.Short() {
+		suite.T().Skip("Skipping test in short / CI mode")
+	}
 	type args struct {
 		queryContent   string
 		queryVariables interface{}

@@ -5,6 +5,9 @@ import (
 )
 
 func Benchmark_GraphQL_Query(t *testing.B) {
+	if testing.Short() {
+		t.Skip("Skipping test in short / CI mode")
+	}
 	type args struct {
 		queryContent   string
 		queryVariables interface{}
