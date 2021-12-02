@@ -50,10 +50,10 @@ func NewConnection() *GraphQL {
 	return &GraphQL{
 		Endpoint: pickGraphqlEndpoint(),
 		HttpClient: &http.Client{
-			Timeout: time.Second * 30,
 			Transport: &http2.Transport{
 				DisableCompression: false,
 				AllowHTTP:          true,
+				PingTimeout:        5 * time.Second,
 				DialTLS: func(network, addr string, cfg *tls.Config) (net.Conn, error) {
 					return net.Dial(network, addr)
 				},
