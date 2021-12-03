@@ -23,12 +23,15 @@ Therefore, I present you the simple client to which you can copy & paste your gr
 * Executing GraphQL queries as they are, without types declaration
 * HTTP2 support!
 * Support for additional headers
+* Query cache
 
 ## Usage example
 
 ### Environment variables
 
 * `GRAPHQL_ENDPOINT` - Your GraphQL endpoint. Default: `http://127.0.0.1:9090/v1/graphql`
+* `GRAPHQL_CACHE` -  Should the query cache be enabled? Default: `false`
+* `GRAPHQL_CACHE_TTL` -  Cache TTL in seconds for SELECT type of queries. Default: `5`
 * `LOG_LEVEL` - Logging level. Default: `info`
 
 ### Example reader code
@@ -37,7 +40,7 @@ Therefore, I present you the simple client to which you can copy & paste your gr
 ```go
 import (
   fmt
-  gql "github.com/lukaszraczylo/simple-gql-client"
+  gql "github.com/lukaszraczylo/go-simple-graphql"
 )
 
 headers := map[string]interface{}{

@@ -18,6 +18,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/allegro/bigcache/v3"
@@ -49,6 +50,32 @@ func pickGraphqlEndpoint() (graphqlEndpoint string) {
 	return graphqlEndpoint
 }
 
+func setCacheTTL() int {
+	value, present := os.LookupEnv("GRAPHQL_CACHE_TTL")
+	if present && value != "" {
+		i, err := strconv.Atoi(value)
+		if err != nil {
+			panic("Invalid value for query cache ttl")
+		}
+		return int(i)
+	} else {
+		return 5
+	}
+}
+
+func setCacheEnabled() bool {
+	value, present := os.LookupEnv("GRAPHQL_CACHE")
+	if present && value != "" {
+		b, err := strconv.ParseBool(value)
+		if err != nil {
+			panic("Invalid value for query cache")
+		}
+		return b
+	} else {
+		return false
+	}
+}
+
 func NewConnection() *GraphQL {
 	return &GraphQL{
 		Endpoint: pickGraphqlEndpoint(),
@@ -63,13 +90,13 @@ func NewConnection() *GraphQL {
 			},
 		},
 		Log:        logging.NewLogger(),
-		Cache:      false,
+		Cache:      setCacheEnabled(),
 		CacheStore: setupCache(),
 	}
 }
 
 func setupCache() *bigcache.BigCache {
-	cache, err := bigcache.NewBigCache(bigcache.DefaultConfig(10 * time.Second))
+	cache, err := bigcache.NewBigCache(bigcache.DefaultConfig(time.Duration(setCacheTTL()) * time.Second))
 	if err != nil {
 		panic("Error creating cache: " + err.Error())
 	}
