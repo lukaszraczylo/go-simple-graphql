@@ -2,6 +2,7 @@ package gql
 
 import (
 	"bytes"
+	"crypto/md5"
 	"errors"
 	"fmt"
 	"io"
@@ -29,16 +30,11 @@ func (g *GraphQL) queryBuilder(queryContent string, queryVariables interface{}) 
 		Variables: queryVariables,
 	}
 
-	// j := new(bytes.Buffer)
 	j2, err := json.Marshal(qb)
 	if err != nil {
 		g.Log.Critical("Unable to marshal the query", map[string]interface{}{"_error": err.Error(), "_query": queryContent, "_variables": queryVariables})
 		return []byte{}, err
 	}
-	// if err = json.Compact(j, j2); err != nil {
-	// 	g.Log.Critical("Unable to compact the query", map[string]interface{}{"error": err.Error()})
-	// 	return []byte{}, err
-	// }
 	return j2, err
 }
 
@@ -49,6 +45,21 @@ func (g *GraphQL) Query(queryContent string, queryVariables interface{}, queryHe
 		g.Log.Error("Unable to build the query", map[string]interface{}{"_error": err.Error()})
 		return "", err
 	}
+
+	var body []byte
+	var queryResult *queryResults
+	queryHash := fmt.Sprintf("%x", md5.Sum(query))
+
+	if g.Cache {
+		g.Log.Debug("Checking the cache for the query", map[string]interface{}{"_query": queryHash})
+		if entry, err := g.CacheStore.Get(queryHash); err == nil {
+			g.Log.Debug("Found the query in the cache", map[string]interface{}{"_query": queryHash})
+			return string(entry), nil
+		} else {
+			g.Log.Debug("Unable to find the query in the cache", map[string]interface{}{"_query": queryHash, "_error": err.Error()})
+		}
+	}
+
 	httpRequest, err := http.NewRequest("POST", g.Endpoint, bytes.NewBuffer(query))
 	httpRequest.Header.Add("Content-Type", "application/json")
 	for header, value := range queryHeaders {
@@ -63,12 +74,12 @@ func (g *GraphQL) Query(queryContent string, queryVariables interface{}, queryHe
 	defer io.Copy(ioutil.Discard, httpResponse.Body)
 	defer httpResponse.Body.Close()
 
-	body, err := ioutil.ReadAll(httpResponse.Body)
+	body, err = ioutil.ReadAll(httpResponse.Body)
 	if err != nil {
 		g.Log.Critical("Unable to read the response", map[string]interface{}{"_error": err.Error()})
 		return "", err
 	}
-	var queryResult *queryResults
+
 	err = json.Unmarshal(body, &queryResult)
 	if err != nil {
 		g.Log.Error("Unable to unmarshal the query", map[string]interface{}{"_error": err.Error()})
@@ -89,6 +100,16 @@ func (g *GraphQL) Query(queryContent string, queryVariables interface{}, queryHe
 	if err != nil {
 		g.Log.Error("Invalid data result", map[string]interface{}{"_query": queryContent, "_variables": queryVariables, "_result": responseContent})
 		return "", err
+	}
+
+	if g.Cache {
+		g.Log.Debug("Caching the query", map[string]interface{}{"_query": queryHash})
+		if queryContent[0:5] == "query" {
+			err = g.CacheStore.Set(queryHash, []byte(responseContent))
+			if err != nil {
+				g.Log.Error("Unable to cache the query", map[string]interface{}{"_query": queryHash, "_error": err.Error()})
+			}
+		}
 	}
 
 	return

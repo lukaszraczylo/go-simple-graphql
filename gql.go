@@ -20,6 +20,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/allegro/bigcache/v3"
 	jsoniter "github.com/json-iterator/go"
 	"github.com/lukaszraczylo/go-simple-graphql/pkg/logging"
 	"golang.org/x/net/http2"
@@ -33,6 +34,8 @@ type GraphQL struct {
 	Endpoint   string
 	HttpClient *http.Client
 	Log        *logging.LogConfig
+	Cache      bool // Enable caching for read queries
+	CacheStore *bigcache.BigCache
 }
 
 func pickGraphqlEndpoint() (graphqlEndpoint string) {
@@ -59,6 +62,16 @@ func NewConnection() *GraphQL {
 				},
 			},
 		},
-		Log: logging.NewLogger(),
+		Log:        logging.NewLogger(),
+		Cache:      false,
+		CacheStore: setupCache(),
 	}
+}
+
+func setupCache() *bigcache.BigCache {
+	cache, err := bigcache.NewBigCache(bigcache.DefaultConfig(10 * time.Second))
+	if err != nil {
+		panic("Error creating cache: " + err.Error())
+	}
+	return cache
 }

@@ -1,7 +1,7 @@
 package gql
 
 import (
-	"os"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -54,22 +54,58 @@ func (suite *TestSuite) Test_GraphQL_Query() {
 	if testing.Short() {
 		suite.T().Skip("Skipping test in short / CI mode")
 	}
+	g := NewConnection()
+
 	type args struct {
 		queryContent   string
 		queryVariables interface{}
 	}
 	tests := []struct {
-		name       string
-		endpoint   string
-		isLocal    bool
-		args       args
-		wantResult string
-		wantErr    bool
+		name          string
+		endpoint      string
+		isLocal       bool
+		cache_enabled bool
+		args          args
+		wantResult    string
+		wantErr       bool
 	}{
 		{
-			name:     "Valid query",
-			endpoint: "http://hasura.local/v1/graphql",
-			isLocal:  true,
+			name:          "Valid query, no cache",
+			endpoint:      "http://hasura.local/v1/graphql",
+			isLocal:       true,
+			cache_enabled: false,
+			args: args{
+				queryContent: `query listUserBots {
+					tbl_bots(limit: 1) {
+						bot_name
+					}
+				}`,
+				queryVariables: nil,
+			},
+			wantResult: `{"tbl_bots":[{"bot_name":"littleMentionBot"}]}`,
+			wantErr:    false,
+		},
+		{
+			name:          "Valid query, with cache empty",
+			endpoint:      "http://hasura.local/v1/graphql",
+			isLocal:       true,
+			cache_enabled: true,
+			args: args{
+				queryContent: `query listUserBots {
+					tbl_bots(limit: 1) {
+						bot_name
+					}
+				}`,
+				queryVariables: nil,
+			},
+			wantResult: `{"tbl_bots":[{"bot_name":"littleMentionBot"}]}`,
+			wantErr:    false,
+		},
+		{
+			name:          "Valid query, with cache filled",
+			endpoint:      "http://hasura.local/v1/graphql",
+			isLocal:       true,
+			cache_enabled: true,
 			args: args{
 				queryContent: `query listUserBots {
 					tbl_bots(limit: 1) {
@@ -99,10 +135,11 @@ func (suite *TestSuite) Test_GraphQL_Query() {
 	}
 	for _, tt := range tests {
 		suite.T().Run(tt.name, func(t *testing.T) {
-			if tt.isLocal {
-				os.Setenv("GRAPHQL_ENDPOINT", tt.endpoint)
-			}
-			g := NewConnection()
+			// if tt.isLocal {
+			// 	os.Setenv("GRAPHQL_ENDPOINT", tt.endpoint)
+			// }
+			g.Endpoint = tt.endpoint
+			g.Cache = tt.cache_enabled
 			gotResult, gotErr := g.Query(tt.args.queryContent, tt.args.queryVariables, nil)
 			if tt.wantErr {
 				assert.Error(t, gotErr)
@@ -110,4 +147,5 @@ func (suite *TestSuite) Test_GraphQL_Query() {
 			assert.Equal(t, tt.wantResult, gotResult)
 		})
 	}
+	fmt.Println(g.CacheStore.Capacity())
 }
