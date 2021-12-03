@@ -52,9 +52,11 @@ func (g *GraphQL) Query(queryContent string, queryVariables interface{}, queryHe
 
 	if g.Cache {
 		g.Log.Debug("Checking the cache for the query", map[string]interface{}{"_query": queryHash})
-		if entry, err := g.CacheStore.Get(queryHash); err == nil {
+		if entry, entryInfo, err := g.CacheStore.GetWithInfo(queryHash); err == nil {
 			g.Log.Debug("Found the query in the cache", map[string]interface{}{"_query": queryHash})
-			return string(entry), nil
+			if pandati.IsZero(entryInfo.EntryStatus) {
+				return string(entry), nil
+			}
 		} else {
 			g.Log.Debug("Unable to find the query in the cache", map[string]interface{}{"_query": queryHash, "_error": err.Error()})
 		}
