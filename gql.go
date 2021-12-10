@@ -15,7 +15,6 @@ package gql
 import (
 	"crypto/tls"
 	"fmt"
-	"net"
 	"net/http"
 	"os"
 	"strconv"
@@ -77,15 +76,15 @@ func setCacheEnabled() bool {
 }
 
 func NewConnection() *GraphQL {
-	return &GraphQL{
+	g := GraphQL{
 		Endpoint: pickGraphqlEndpoint(),
 		HttpClient: &http.Client{
 			Transport: &http2.Transport{
 				DisableCompression: false,
 				AllowHTTP:          true,
-				PingTimeout:        5 * time.Second,
-				DialTLS: func(network, addr string, cfg *tls.Config) (net.Conn, error) {
-					return net.Dial(network, addr)
+				PingTimeout:        10 * time.Second,
+				TLSClientConfig: &tls.Config{
+					InsecureSkipVerify: true,
 				},
 			},
 		},
@@ -93,6 +92,7 @@ func NewConnection() *GraphQL {
 		Cache:      setCacheEnabled(),
 		CacheStore: setupCache(),
 	}
+	return &g
 }
 
 func setupCache() *bigcache.BigCache {
