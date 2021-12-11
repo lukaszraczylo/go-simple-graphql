@@ -14,8 +14,8 @@ Ps. It's Hasura friendly.
 
 ## Reasoning
 
-I've tried to run few graphQL clients with hasura, all of them required conversion of the data into
-the appropriate structures, causing issues with non-existing types ( thanks to Hasura ), for example `bigint` which was difficult to export.
+I've tried to run a few GraphQL clients with Hasura, all of them required conversion of the data into
+the appropriate structures, causing issues with non-existing types ( thanks to Hasura ), for example, `bigint` which was difficult to export.
 Therefore, I present you the simple client to which you can copy & paste your graphQL query, variables and you are good to go.
 
 ## Features
@@ -40,28 +40,28 @@ Therefore, I present you the simple client to which you can copy & paste your gr
 ```go
 import (
   fmt
-  gql "github.com/lukaszraczylo/go-simple-graphql"
+  graphql "github.com/lukaszraczylo/go-simple-graphql"
 )
 
 headers := map[string]interface{}{
   "x-hasura-user-id":   37,
-  "x-hasura-user-uuid": "bde3262e-b42e-4151-ac10-d43f0bef44a5",
+  "x-hasura-user-uuid": "bde1962e-b42e-1212-ac10-d43fa27f44a5",
 }
 
 variables := map[string]interface{}{
-"fileHash": "123deadc0w321",
+  "fileHash": "123deadc0w321",
 }
-var query = `query searchFileKnown($fileHash: String) {
+
+query := `query searchFileKnown($fileHash: String) {
   tbl_file_scans(where: {file_hash: {_eq: $fileHash}}) {
-  	porn
   	racy
   	violence
   	virus
   }
-}
+}`
 
-graphql := NewConnection()
-result, err := graphql.Query(query, variables, nil)
+gql := graphql.NewConnection()
+result, err := gql.Query(query, variables, headers)
 if err != nil {
   fmt.Println("Query error", err)
   return
@@ -77,10 +77,10 @@ fmt.Println(result)
 
 ## Working with results
 
-I'm using an amazing library [tidwall/gjson](https://github.com/tidwall/gjson) to parse the results and extract information required in further steps and I strongly recommend this approach as the easiest and close to painless.
+I'm using an amazing library [tidwall/gjson](https://github.com/tidwall/gjson) to parse the results and extract the information required in further steps and I strongly recommend this approach as the easiest and close to painless, for example:
 
 ```go
-result = gjson.Get(result, "tbl_user_group_admins.0.is_admin").Bool()
+result := gjson.Get(result, "tbl_user_group_admins.0.is_admin").Bool()
 if result {
   fmt.Println("User is an admin")
 }
