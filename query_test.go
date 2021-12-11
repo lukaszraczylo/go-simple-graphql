@@ -2,6 +2,7 @@ package gql
 
 import (
 	"fmt"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -59,6 +60,7 @@ func (suite *TestSuite) Test_GraphQL_Query() {
 	type args struct {
 		queryContent   string
 		queryVariables interface{}
+		queryHeaders   map[string]interface{}
 	}
 	tests := []struct {
 		name          string
@@ -151,6 +153,30 @@ func (suite *TestSuite) Test_GraphQL_Query() {
 			wantResult: `{"available_packages":[{"package_discount":0,"package_name":"media_1000","package_price":750,"package_size":1000,"package_type":"media"},{"package_discount":5,"package_name":"media_5000","package_price":3563,"package_size":5000,"package_type":"media"},{"package_discount":10,"package_name":"media_10000","package_price":6750,"package_size":10000,"package_type":"media"},{"package_discount":15,"package_name":"media_25000","package_price":15938,"package_size":25000,"package_type":"media"},{"package_discount":0,"package_name":"voice_500","package_price":1000,"package_size":500,"package_type":"voice"},{"package_discount":10,"package_name":"voice_1000","package_price":1800,"package_size":1000,"package_type":"voice"},{"package_discount":15,"package_name":"voice_2500","package_price":4250,"package_size":2500,"package_type":"voice"}]}`,
 			wantErr:    false,
 		},
+		{
+			name:     "Valid query to github endpoint",
+			endpoint: "https://api.github.com/graphql",
+			isLocal:  false,
+			args: args{
+				queryContent: `query {
+					repository(name: "semver-generator", owner: "lukaszraczylo", followRenames: true) {
+						releases(last: 2) {
+							nodes {
+								tag {
+									name
+								}
+							}
+						}
+					}
+				}`,
+				queryVariables: nil,
+				queryHeaders: map[string]interface{}{
+					"Authorization": "Bearer " + os.Getenv("GITHUB_TOKEN"),
+				},
+			},
+			wantResult: `{"repository":{"releases":{"nodes":[`,
+			wantErr:    false,
+		},
 	}
 	for _, tt := range tests {
 		suite.T().Run(tt.name, func(t *testing.T) {
@@ -159,11 +185,11 @@ func (suite *TestSuite) Test_GraphQL_Query() {
 			// }
 			g.Endpoint = tt.endpoint
 			g.Cache = tt.cache_enabled
-			gotResult, gotErr := g.Query(tt.args.queryContent, tt.args.queryVariables, nil)
+			gotResult, gotErr := g.Query(tt.args.queryContent, tt.args.queryVariables, tt.args.queryHeaders)
 			if tt.wantErr {
 				assert.Error(t, gotErr)
 			}
-			assert.Equal(t, tt.wantResult, gotResult)
+			assert.Contains(t, gotResult, tt.wantResult)
 		})
 	}
 	fmt.Println(g.CacheStore.Capacity())

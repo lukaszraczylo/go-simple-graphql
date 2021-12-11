@@ -63,7 +63,7 @@ func (g *GraphQL) Query(queryContent string, queryVariables interface{}, queryHe
 	}
 
 	httpRequest, err := http.NewRequest("POST", g.Endpoint, bytes.NewBuffer(query))
-	httpRequest.Header.Add("Content-Type", "application/json")
+	//httpRequest.Header.Add("Content-Type", "application/json")
 	for header, value := range queryHeaders {
 		httpRequest.Header.Add(fmt.Sprintf("%v", header), fmt.Sprintf("%v", value))
 	}
@@ -89,18 +89,18 @@ func (g *GraphQL) Query(queryContent string, queryVariables interface{}, queryHe
 	}
 
 	if !pandati.IsZero(queryResult.Errors) {
-		g.Log.Error("Query returned error", map[string]interface{}{"_query": queryContent, "_variables": queryVariables, "_error": fmt.Sprintf("%v", queryResult.Errors)})
+		g.Log.Error("Query returned error", map[string]interface{}{"_query": queryContent, "_variables": queryVariables, "_error": fmt.Sprintf("%v", queryResult.Errors), "_response_code": httpResponse.StatusCode})
 		return "", fmt.Errorf("%v", queryResult.Errors[0].Message)
 	}
 
 	if pandati.IsZero(queryResult.Data) {
-		g.Log.Error("Query returned no data", map[string]interface{}{"_query": queryContent, "_variables": queryVariables})
+		g.Log.Error("Query returned no data", map[string]interface{}{"_query": queryContent, "_variables": queryVariables, "_response_code": httpResponse.StatusCode})
 		return "", errors.New("Query returned no data")
 	}
 
 	responseContent, err = json.MarshalToString(queryResult.Data)
 	if err != nil {
-		g.Log.Error("Invalid data result", map[string]interface{}{"_query": queryContent, "_variables": queryVariables, "_result": responseContent})
+		g.Log.Error("Invalid data result", map[string]interface{}{"_query": queryContent, "_variables": queryVariables, "_result": responseContent, "_response_code": httpResponse.StatusCode})
 		return "", err
 	}
 
