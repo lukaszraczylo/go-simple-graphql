@@ -73,7 +73,7 @@ func (suite *TestSuite) Test_GraphQL_Query() {
 	}{
 		{
 			name:          "Valid query, no cache",
-			endpoint:      "http://hasura.local/v1/graphql",
+			endpoint:      "https://hasura.local/v1/graphql",
 			isLocal:       true,
 			cache_enabled: false,
 			args: args{
@@ -84,12 +84,12 @@ func (suite *TestSuite) Test_GraphQL_Query() {
 				}`,
 				queryVariables: nil,
 			},
-			wantResult: `{"tbl_bots":[{"bot_name":"littleMentionBot"}]}`,
+			wantResult: `{"tbl_bots":[{"bot_name":"ThetaGuardianBot"}]}`,
 			wantErr:    false,
 		},
 		{
 			name:          "Valid query, with cache empty",
-			endpoint:      "http://hasura.local/v1/graphql",
+			endpoint:      "https://hasura.local/v1/graphql",
 			isLocal:       true,
 			cache_enabled: true,
 			args: args{
@@ -100,12 +100,12 @@ func (suite *TestSuite) Test_GraphQL_Query() {
 				}`,
 				queryVariables: nil,
 			},
-			wantResult: `{"tbl_bots":[{"bot_name":"littleMentionBot"}]}`,
+			wantResult: `{"tbl_bots":[{"bot_name":"ThetaGuardianBot"}]}`,
 			wantErr:    false,
 		},
 		{
 			name:          "Valid query, with cache filled",
-			endpoint:      "http://hasura.local/v1/graphql",
+			endpoint:      "https://hasura.local/v1/graphql",
 			isLocal:       true,
 			cache_enabled: true,
 			args: args{
@@ -116,12 +116,12 @@ func (suite *TestSuite) Test_GraphQL_Query() {
 				}`,
 				queryVariables: nil,
 			},
-			wantResult: `{"tbl_bots":[{"bot_name":"littleMentionBot"}]}`,
+			wantResult: `{"tbl_bots":[{"bot_name":"ThetaGuardianBot"}]}`,
 			wantErr:    false,
 		},
 		{
 			name:     "Invalid query",
-			endpoint: "http://hasura.local/v1/graphql",
+			endpoint: "https://hasura.local/v1/graphql",
 			isLocal:  true,
 			args: args{
 				queryContent: `query listUserBots {
