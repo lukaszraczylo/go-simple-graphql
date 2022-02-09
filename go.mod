@@ -7,9 +7,9 @@ require (
 	github.com/buger/jsonparser v1.1.1
 	github.com/json-iterator/go v1.1.12
 	github.com/lukaszraczylo/pandati v0.0.10
-	github.com/rs/zerolog v1.26.0
+	github.com/rs/zerolog v1.26.1
 	github.com/stretchr/testify v1.7.0
-	golang.org/x/net v0.0.0-20211201190559-0a0e4e1bb54c
+	golang.org/x/net v0.0.0-20220127200216-cd36cc0744dd
 )
 
 require (
