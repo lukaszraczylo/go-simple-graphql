@@ -23,3 +23,10 @@ all: test-packages test
 .PHONY: update
 update: ## update dependencies
 	@go get -u -v ./...
+
+sonar:
+	sonar-scanner \
+  -Dsonar.projectKey=golang-simple-graphql \
+  -Dsonar.sources=. \
+  -Dsonar.host.url=http://localhost:9000 \
+  -Dsonar.login=555ba78b315faa07b3231a3be0f3cbb24ab33814
