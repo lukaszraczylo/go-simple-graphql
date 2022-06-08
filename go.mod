@@ -9,6 +9,7 @@ require (
 	github.com/json-iterator/go v1.1.12
 	github.com/lukaszraczylo/pandati v0.0.15
 	github.com/rs/zerolog v1.27.0
+	github.com/sethvargo/go-retry v0.2.3
 	github.com/stretchr/testify v1.7.1
 	golang.org/x/net v0.0.0-20220607020251-c690dde0001d
 )
@@ -25,7 +26,7 @@ require (
 	github.com/tidwall/match v1.1.1 // indirect
 	github.com/tidwall/pretty v1.2.0 // indirect
 	github.com/wI2L/jsondiff v0.2.0 // indirect
-	golang.org/x/sys v0.0.0-20220520151302-bc2c85ada10a // indirect
+	golang.org/x/sys v0.0.0-20220608164250-635b8c9b7f68 // indirect
 	golang.org/x/text v0.3.7 // indirect
 	gopkg.in/yaml.v3 v3.0.0 // indirect
 )

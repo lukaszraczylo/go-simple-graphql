@@ -2,6 +2,7 @@ package gql
 
 import (
 	"bytes"
+	"context"
 	"crypto/md5"
 	"errors"
 	"fmt"
@@ -10,8 +11,8 @@ import (
 	"net/http"
 	"time"
 
-	retry "github.com/avast/retry-go"
 	"github.com/lukaszraczylo/pandati"
+	retry "github.com/sethvargo/go-retry"
 )
 
 type requestBase struct {
@@ -41,6 +42,7 @@ func (g *GraphQL) queryBuilder(queryContent string, queryVariables interface{}) 
 }
 
 func (g *GraphQL) Query(queryContent string, queryVariables interface{}, queryHeaders map[string]interface{}) (responseContent string, err error) {
+	ctx := context.Background()
 	g.Log.Debug("Query details", map[string]interface{}{"_query": queryContent, "_variables": queryVariables})
 	query, err := g.queryBuilder(queryContent, queryVariables)
 	if err != nil {
@@ -72,41 +74,35 @@ func (g *GraphQL) Query(queryContent string, queryVariables interface{}, queryHe
 
 	var httpResponse *http.Response
 
-	err = retry.Do(
-		func() error {
-			httpResponse, err = g.HttpClient.Do(httpRequest)
-			if err != nil {
-				g.Log.Error("Unable to send the query", map[string]interface{}{"_error": err.Error()})
-				return err
-			}
-			if httpResponse.StatusCode <= 200 && httpResponse.StatusCode >= 204 {
-				return errors.New(fmt.Sprintf("%v", httpResponse.StatusCode))
-			}
+	backoff := retry.NewExponential(time.Duration(g.RetriesDelay))
+	backoff = retry.WithMaxRetries(uint64(g.RetriesNumber), backoff)
 
-			defer io.Copy(ioutil.Discard, httpResponse.Body)
-			defer httpResponse.Body.Close()
+	retry.Do(ctx, backoff, func(ctx context.Context) error {
+		httpResponse, err = g.HttpClient.Do(httpRequest)
+		if err != nil {
+			g.Log.Error("Unable to send the query", map[string]interface{}{"_error": err.Error()})
+			return err
+		}
+		if httpResponse.StatusCode <= 200 && httpResponse.StatusCode >= 204 {
+			return retry.RetryableError(errors.New(fmt.Sprintf("%v", httpResponse.StatusCode)))
+		}
 
-			body, err = ioutil.ReadAll(httpResponse.Body)
-			if err != nil {
-				g.Log.Critical("Unable to read the response", map[string]interface{}{"_error": err.Error()})
-				return errors.New(fmt.Sprintf("body parsing %v", httpResponse.StatusCode))
-			}
+		defer io.Copy(ioutil.Discard, httpResponse.Body)
+		defer httpResponse.Body.Close()
 
-			err = json.Unmarshal(body, &queryResult)
-			if err != nil {
-				g.Log.Error("Unable to unmarshal the query", map[string]interface{}{"_error": err.Error()})
-				return errors.New(fmt.Sprintf("body unmarshal %v", httpResponse.StatusCode))
-			}
-			return nil
-		},
-		retry.Attempts(uint(g.RetriesNumber)),
-		retry.OnRetry(
-			func(n uint, err error) {
-				g.Log.Debug("Retrying the query", map[string]interface{}{"_attempt": n, "_error": err.Error()})
-				time.Sleep(time.Duration(g.RetriesDelay) * time.Millisecond)
-			},
-		),
-	)
+		body, err = ioutil.ReadAll(httpResponse.Body)
+		if err != nil {
+			g.Log.Critical("Unable to read the response", map[string]interface{}{"_error": err.Error()})
+			return retry.RetryableError(errors.New(fmt.Sprintf("body parsing %v", httpResponse.StatusCode)))
+		}
+
+		err = json.Unmarshal(body, &queryResult)
+		if err != nil {
+			g.Log.Error("Unable to unmarshal the query", map[string]interface{}{"_error": err.Error()})
+			return retry.RetryableError(errors.New(fmt.Sprintf("body unmarshal %v", httpResponse.StatusCode)))
+		}
+		return nil
+	})
 
 	if !pandati.IsZero(queryResult.Errors) || err != nil {
 		g.Log.Error("Query returned error", map[string]interface{}{"_query": queryContent, "_variables": queryVariables, "_error": fmt.Sprintf("%v", queryResult.Errors), "_response_code": httpResponse.StatusCode})
