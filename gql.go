@@ -23,6 +23,7 @@ import (
 	"github.com/allegro/bigcache/v3"
 	jsoniter "github.com/json-iterator/go"
 	"github.com/lukaszraczylo/go-simple-graphql/pkg/logging"
+	retry "github.com/sethvargo/go-retry"
 	"golang.org/x/net/http2"
 )
 
@@ -38,7 +39,8 @@ type GraphQL struct {
 	CacheStore    *bigcache.BigCache
 	RetriesEnable bool
 	RetriesNumber int
-	RetriesDelay  int
+	RetriesDelay  time.Duration
+	BackoffSetup  retry.Backoff
 }
 
 func pickGraphqlEndpoint() (graphqlEndpoint string) {
@@ -86,7 +88,7 @@ func NewConnection() *GraphQL {
 				ReadIdleTimeout:    30 * time.Second,
 				DisableCompression: false,
 				AllowHTTP:          true,
-				PingTimeout:        10 * time.Second,
+				PingTimeout:        5 * time.Second,
 				TLSClientConfig: &tls.Config{
 					InsecureSkipVerify: true,
 				},
@@ -98,6 +100,7 @@ func NewConnection() *GraphQL {
 		RetriesEnable: false,
 		RetriesNumber: 1,
 		RetriesDelay:  250,
+		BackoffSetup:  nil,
 	}
 	var err error
 	retriesEnable, retriesEnableExists := os.LookupEnv("RETRIES_ENABLE")
@@ -115,9 +118,16 @@ func NewConnection() *GraphQL {
 		}
 		retriesDelay, retriesDelayExists := os.LookupEnv("RETRIES_DELAY")
 		if retriesDelayExists {
-			g.RetriesDelay, err = strconv.Atoi(retriesDelay)
+			retDel, err := strconv.Atoi(retriesDelay)
+			if err != nil {
+				panic("Invalid value for RETRIES_DELAY")
+			}
+			g.RetriesDelay = time.Duration(retDel) * time.Millisecond
 		}
 	}
+	g.BackoffSetup = retry.NewExponential(g.RetriesDelay)
+	g.BackoffSetup = retry.WithMaxRetries(uint64(g.RetriesNumber), g.BackoffSetup)
+
 	return &g
 }
 

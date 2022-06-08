@@ -143,7 +143,7 @@ func (suite *TestSuite) Test_GraphQL_Query() {
 		},
 		{
 			name:     "Valid query to https endpoint",
-			endpoint: "https://telegram-bot.app/v1/graphql",
+			endpoint: "https://hasura.local/v1/graphql",
 			isLocal:  false,
 			args: args{
 				queryContent: `query packages_prices {

@@ -9,7 +9,6 @@ import (
 	"io"
 	"io/ioutil"
 	"net/http"
-	"time"
 
 	"github.com/lukaszraczylo/pandati"
 	retry "github.com/sethvargo/go-retry"
@@ -67,20 +66,22 @@ func (g *GraphQL) Query(queryContent string, queryVariables interface{}, queryHe
 	}
 
 	httpRequest, err := http.NewRequest("POST", g.Endpoint, bytes.NewBuffer(query))
-	//httpRequest.Header.Add("Content-Type", "application/json")
+	// httpRequest.Header.Set("Content-Type", "application/json")
+	if err != nil {
+		g.Log.Error("Unable to create the request", map[string]interface{}{"_error": err.Error()})
+		return "", err
+	}
+
 	for header, value := range queryHeaders {
 		httpRequest.Header.Add(fmt.Sprintf("%v", header), fmt.Sprintf("%v", value))
 	}
 
 	var httpResponse *http.Response
 
-	backoff := retry.NewExponential(time.Duration(g.RetriesDelay))
-	backoff = retry.WithMaxRetries(uint64(g.RetriesNumber), backoff)
-
-	retry.Do(ctx, backoff, func(ctx context.Context) error {
+	retry.Do(ctx, g.BackoffSetup, func(ctx context.Context) error {
 		httpResponse, err = g.HttpClient.Do(httpRequest)
 		if err != nil {
-			g.Log.Error("Unable to send the query", map[string]interface{}{"_error": err.Error()})
+			g.Log.Debug("Unable to send the query RETRY", map[string]interface{}{"_error": err.Error()})
 			return err
 		}
 		if httpResponse.StatusCode <= 200 && httpResponse.StatusCode >= 204 {
@@ -92,19 +93,19 @@ func (g *GraphQL) Query(queryContent string, queryVariables interface{}, queryHe
 
 		body, err = ioutil.ReadAll(httpResponse.Body)
 		if err != nil {
-			g.Log.Critical("Unable to read the response", map[string]interface{}{"_error": err.Error()})
-			return retry.RetryableError(errors.New(fmt.Sprintf("body parsing %v", httpResponse.StatusCode)))
+			g.Log.Debug("Unable to read the response", map[string]interface{}{"_error": err.Error()})
+			return retry.RetryableError(errors.New(fmt.Sprintf("RETRY: body parsing %v", httpResponse.StatusCode)))
 		}
 
 		err = json.Unmarshal(body, &queryResult)
 		if err != nil {
-			g.Log.Error("Unable to unmarshal the query", map[string]interface{}{"_error": err.Error()})
-			return retry.RetryableError(errors.New(fmt.Sprintf("body unmarshal %v", httpResponse.StatusCode)))
+			g.Log.Debug("Unable to unmarshal the query", map[string]interface{}{"_error": err.Error()})
+			return retry.RetryableError(errors.New(fmt.Sprintf("RETRY: body unmarshal %v", httpResponse.StatusCode)))
 		}
 		return nil
 	})
 
-	if !pandati.IsZero(queryResult.Errors) || err != nil {
+	if !pandati.IsZero(queryResult.Errors) {
 		g.Log.Error("Query returned error", map[string]interface{}{"_query": queryContent, "_variables": queryVariables, "_error": fmt.Sprintf("%v", queryResult.Errors), "_response_code": httpResponse.StatusCode})
 		return "", fmt.Errorf("%v", queryResult.Errors)
 	}
