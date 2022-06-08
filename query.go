@@ -110,7 +110,7 @@ func (g *GraphQL) Query(queryContent string, queryVariables interface{}, queryHe
 
 	if !pandati.IsZero(queryResult.Errors) || err != nil {
 		g.Log.Error("Query returned error", map[string]interface{}{"_query": queryContent, "_variables": queryVariables, "_error": fmt.Sprintf("%v", queryResult.Errors), "_response_code": httpResponse.StatusCode})
-		return "", fmt.Errorf("%v", queryResult.Errors[0].Message)
+		return "", fmt.Errorf("%v", queryResult.Errors)
 	}
 
 	if pandati.IsZero(queryResult.Data) {
