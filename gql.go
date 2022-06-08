@@ -107,18 +107,16 @@ func NewConnection() *GraphQL {
 			panic("Invalid value for RETRIES_ENABLE")
 		}
 		retriesNumber, retriesNumberExists := os.LookupEnv("RETRIES_NUMBER")
-		if !retriesNumberExists {
-			panic("RETRIES_NUMBER environment variable is not set but RETRIES_ENABLE is")
-		}
-		g.RetriesNumber, err = strconv.Atoi(retriesNumber)
-		if err != nil {
-			panic("Invalid value for RETRIES_NUMBER")
+		if retriesNumberExists {
+			g.RetriesNumber, err = strconv.Atoi(retriesNumber)
+			if err != nil {
+				panic("Invalid value for RETRIES_NUMBER")
+			}
 		}
 		retriesDelay, retriesDelayExists := os.LookupEnv("RETRIES_DELAY")
-		if !retriesDelayExists {
-			panic("RETRIES_DELAY environment variable is not set but RETRIES_ENABLE is")
+		if retriesDelayExists {
+			g.RetriesDelay, err = strconv.Atoi(retriesDelay)
 		}
-		g.RetriesDelay, err = strconv.Atoi(retriesDelay)
 	}
 	return &g
 }
