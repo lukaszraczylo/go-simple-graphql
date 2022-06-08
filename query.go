@@ -87,7 +87,7 @@ func (g *GraphQL) Query(queryContent string, queryVariables interface{}, queryHe
 		retry.Attempts(uint(g.RetriesNumber)),
 		retry.OnRetry(
 			func(n uint, err error) {
-				g.Log.Warning("Retrying the query", map[string]interface{}{"_attempt": n, "_error": err.Error()})
+				g.Log.Debug("Retrying the query", map[string]interface{}{"_attempt": n, "_error": err.Error()})
 				time.Sleep(time.Duration(g.RetriesDelay) * time.Millisecond)
 			},
 		),
