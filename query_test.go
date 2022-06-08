@@ -77,14 +77,16 @@ func (suite *TestSuite) Test_GraphQL_Query() {
 			isLocal:       true,
 			cache_enabled: false,
 			args: args{
-				queryContent: `query listUserBots {
-					tbl_bots(limit: 1) {
-						bot_name
+				queryContent: `query packages_prices {
+					sub_group_packages_aggregate(where: {enabled: {_eq: true}}) {
+						aggregate {
+							count
+						}
 					}
 				}`,
 				queryVariables: nil,
 			},
-			wantResult: `{"tbl_bots":[{"bot_name":"ThetaGuardianBot"}]}`,
+			wantResult: `{"sub_group_packages_aggregate":{"aggregate":{"count":4}}}`,
 			wantErr:    false,
 		},
 		{
@@ -93,14 +95,16 @@ func (suite *TestSuite) Test_GraphQL_Query() {
 			isLocal:       true,
 			cache_enabled: true,
 			args: args{
-				queryContent: `query listUserBots {
-					tbl_bots(limit: 1) {
-						bot_name
+				queryContent: `query packages_prices {
+					sub_group_packages_aggregate(where: {enabled: {_eq: true}}) {
+						aggregate {
+							count
+						}
 					}
 				}`,
 				queryVariables: nil,
 			},
-			wantResult: `{"tbl_bots":[{"bot_name":"ThetaGuardianBot"}]}`,
+			wantResult: `{"sub_group_packages_aggregate":{"aggregate":{"count":4}}}`,
 			wantErr:    false,
 		},
 		{
@@ -109,14 +113,16 @@ func (suite *TestSuite) Test_GraphQL_Query() {
 			isLocal:       true,
 			cache_enabled: true,
 			args: args{
-				queryContent: `query listUserBots {
-					tbl_bots(limit: 1) {
-						bot_name
+				queryContent: `query packages_prices {
+					sub_group_packages_aggregate(where: {enabled: {_eq: true}}) {
+						aggregate {
+							count
+						}
 					}
 				}`,
 				queryVariables: nil,
 			},
-			wantResult: `{"tbl_bots":[{"bot_name":"ThetaGuardianBot"}]}`,
+			wantResult: `{"sub_group_packages_aggregate":{"aggregate":{"count":4}}}`,
 			wantErr:    false,
 		},
 		{
@@ -124,9 +130,10 @@ func (suite *TestSuite) Test_GraphQL_Query() {
 			endpoint: "https://hasura.local/v1/graphql",
 			isLocal:  true,
 			args: args{
-				queryContent: `query listUserBots {
-					tbl_botz(limit: 1) {
-						bot_name
+				queryContent: `query packages_pricez {
+					sub_group_packages_aggregate(where: {enabled: {_eq: true}}) {
+						aggregate {
+							count
 					}
 				}`,
 				queryVariables: nil,
@@ -136,21 +143,19 @@ func (suite *TestSuite) Test_GraphQL_Query() {
 		},
 		{
 			name:     "Valid query to https endpoint",
-			endpoint: "https://web-dev.telegram-bot.app/v1/graphql",
+			endpoint: "https://telegram-bot.app/v1/graphql",
 			isLocal:  false,
 			args: args{
 				queryContent: `query packages_prices {
-					available_packages: tbl_available_packages(where: {enabled: {_eq: true}}) {
-						package_name
-						package_discount
-						package_price
-						package_size
-						package_type
+					sub_group_packages_aggregate(where: {enabled: {_eq: true}}) {
+						aggregate {
+							count
+						}
 					}
 				}`,
 				queryVariables: nil,
 			},
-			wantResult: `{"available_packages":[{"package_discount":0,"package_name":"media_1000","package_price":750,"package_size":1000,"package_type":"media"},{"package_discount":5,"package_name":"media_5000","package_price":3563,"package_size":5000,"package_type":"media"},{"package_discount":10,"package_name":"media_10000","package_price":6750,"package_size":10000,"package_type":"media"},{"package_discount":15,"package_name":"media_25000","package_price":15938,"package_size":25000,"package_type":"media"},{"package_discount":0,"package_name":"voice_500","package_price":1000,"package_size":500,"package_type":"voice"},{"package_discount":10,"package_name":"voice_1000","package_price":1800,"package_size":1000,"package_type":"voice"},{"package_discount":15,"package_name":"voice_2500","package_price":4250,"package_size":2500,"package_type":"voice"}]}`,
+			wantResult: `{"sub_group_packages_aggregate":{"aggregate":{"count":4}}}`,
 			wantErr:    false,
 		},
 		{

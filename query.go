@@ -8,7 +8,9 @@ import (
 	"io"
 	"io/ioutil"
 	"net/http"
+	"time"
 
+	retry "github.com/avast/retry-go"
 	"github.com/lukaszraczylo/pandati"
 )
 
@@ -68,11 +70,29 @@ func (g *GraphQL) Query(queryContent string, queryVariables interface{}, queryHe
 		httpRequest.Header.Add(fmt.Sprintf("%v", header), fmt.Sprintf("%v", value))
 	}
 
-	httpResponse, err := g.HttpClient.Do(httpRequest)
-	if err != nil {
-		g.Log.Error("Unable to send the query", map[string]interface{}{"_error": err.Error()})
-		return "", err
-	}
+	var httpResponse *http.Response
+
+	err = retry.Do(
+		func() error {
+			httpResponse, err = g.HttpClient.Do(httpRequest)
+			if err != nil {
+				g.Log.Error("Unable to send the query", map[string]interface{}{"_error": err.Error()})
+				return err
+			}
+			if httpResponse.StatusCode >= 200 && httpResponse.StatusCode <= 204 {
+				return errors.New(fmt.Sprintf("%v", httpResponse.StatusCode))
+			}
+			return nil
+		},
+		retry.Attempts(uint(g.RetriesNumber)),
+		retry.OnRetry(
+			func(n uint, err error) {
+				g.Log.Warning("Retrying the query", map[string]interface{}{"_attempt": n, "_error": err.Error()})
+				time.Sleep(time.Duration(g.RetriesDelay) * time.Millisecond)
+			},
+		),
+	)
+
 	defer io.Copy(ioutil.Discard, httpResponse.Body)
 	defer httpResponse.Body.Close()
 

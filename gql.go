@@ -31,11 +31,14 @@ var (
 )
 
 type GraphQL struct {
-	Endpoint   string
-	HttpClient *http.Client
-	Log        *logging.LogConfig
-	Cache      bool // Enable caching for read queries
-	CacheStore *bigcache.BigCache
+	Endpoint      string
+	HttpClient    *http.Client
+	Log           *logging.LogConfig
+	Cache         bool // Enable caching for read queries
+	CacheStore    *bigcache.BigCache
+	RetriesEnable bool
+	RetriesNumber int
+	RetriesDelay  int
 }
 
 func pickGraphqlEndpoint() (graphqlEndpoint string) {
@@ -89,9 +92,33 @@ func NewConnection() *GraphQL {
 				},
 			},
 		},
-		Log:        logging.NewLogger(),
-		Cache:      setCacheEnabled(),
-		CacheStore: setupCache(),
+		Log:           logging.NewLogger(),
+		Cache:         setCacheEnabled(),
+		CacheStore:    setupCache(),
+		RetriesEnable: false,
+		RetriesNumber: 1,
+		RetriesDelay:  250,
+	}
+	var err error
+	retriesEnable, retriesEnableExists := os.LookupEnv("RETRIES_ENABLE")
+	if retriesEnableExists {
+		g.RetriesEnable, err = strconv.ParseBool(retriesEnable)
+		if err != nil {
+			panic("Invalid value for RETRIES_ENABLE")
+		}
+		retriesNumber, retriesNumberExists := os.LookupEnv("RETRIES_NUMBER")
+		if !retriesNumberExists {
+			panic("RETRIES_NUMBER environment variable is not set but RETRIES_ENABLE is")
+		}
+		g.RetriesNumber, err = strconv.Atoi(retriesNumber)
+		if err != nil {
+			panic("Invalid value for RETRIES_NUMBER")
+		}
+		retriesDelay, retriesDelayExists := os.LookupEnv("RETRIES_DELAY")
+		if !retriesDelayExists {
+			panic("RETRIES_DELAY environment variable is not set but RETRIES_ENABLE is")
+		}
+		g.RetriesDelay, err = strconv.Atoi(retriesDelay)
 	}
 	return &g
 }

@@ -33,6 +33,9 @@ Therefore, I present you the simple client to which you can copy & paste your gr
 * `GRAPHQL_CACHE` -  Should the query cache be enabled? Default: `false`
 * `GRAPHQL_CACHE_TTL` -  Cache TTL in seconds for SELECT type of queries. Default: `5`
 * `LOG_LEVEL` - Logging level. Default: `info`
+* `RETRIES_ENABLE` - Should retries be enabled? Default: `false`
+* `RETRIES_NUMBER` - Number of retries: Default: `1`
+* `RETRIES_DELAY` - Delay in retries in milliseconds. Default: `250`
 
 ### Example reader code
 
