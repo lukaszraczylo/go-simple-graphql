@@ -79,7 +79,7 @@ func (g *GraphQL) Query(queryContent string, queryVariables interface{}, queryHe
 				g.Log.Error("Unable to send the query", map[string]interface{}{"_error": err.Error()})
 				return err
 			}
-			if httpResponse.StatusCode >= 200 && httpResponse.StatusCode <= 204 {
+			if httpResponse.StatusCode <= 200 && httpResponse.StatusCode >= 204 {
 				return errors.New(fmt.Sprintf("%v", httpResponse.StatusCode))
 			}
 			return nil
