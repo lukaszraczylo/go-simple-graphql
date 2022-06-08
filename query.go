@@ -82,6 +82,21 @@ func (g *GraphQL) Query(queryContent string, queryVariables interface{}, queryHe
 			if httpResponse.StatusCode <= 200 && httpResponse.StatusCode >= 204 {
 				return errors.New(fmt.Sprintf("%v", httpResponse.StatusCode))
 			}
+
+			defer io.Copy(ioutil.Discard, httpResponse.Body)
+			defer httpResponse.Body.Close()
+
+			body, err = ioutil.ReadAll(httpResponse.Body)
+			if err != nil {
+				g.Log.Critical("Unable to read the response", map[string]interface{}{"_error": err.Error()})
+				return errors.New(fmt.Sprintf("body parsing %v", httpResponse.StatusCode))
+			}
+
+			err = json.Unmarshal(body, &queryResult)
+			if err != nil {
+				g.Log.Error("Unable to unmarshal the query", map[string]interface{}{"_error": err.Error()})
+				return errors.New(fmt.Sprintf("body unmarshal %v", httpResponse.StatusCode))
+			}
 			return nil
 		},
 		retry.Attempts(uint(g.RetriesNumber)),
@@ -93,22 +108,7 @@ func (g *GraphQL) Query(queryContent string, queryVariables interface{}, queryHe
 		),
 	)
 
-	defer io.Copy(ioutil.Discard, httpResponse.Body)
-	defer httpResponse.Body.Close()
-
-	body, err = ioutil.ReadAll(httpResponse.Body)
-	if err != nil {
-		g.Log.Critical("Unable to read the response", map[string]interface{}{"_error": err.Error()})
-		return "", err
-	}
-
-	err = json.Unmarshal(body, &queryResult)
-	if err != nil {
-		g.Log.Error("Unable to unmarshal the query", map[string]interface{}{"_error": err.Error()})
-		return "", err
-	}
-
-	if !pandati.IsZero(queryResult.Errors) {
+	if !pandati.IsZero(queryResult.Errors) || err != nil {
 		g.Log.Error("Query returned error", map[string]interface{}{"_query": queryContent, "_variables": queryVariables, "_error": fmt.Sprintf("%v", queryResult.Errors), "_response_code": httpResponse.StatusCode})
 		return "", fmt.Errorf("%v", queryResult.Errors[0].Message)
 	}
