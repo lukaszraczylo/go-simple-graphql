@@ -66,6 +66,7 @@ func (g *GraphQL) Query(queryContent string, queryVariables interface{}, queryHe
 	}
 
 	httpRequest, err := http.NewRequest("POST", g.Endpoint, bytes.NewBuffer(query))
+	defer httpRequest.Body.Close()
 	// httpRequest.Header.Set("Content-Type", "application/json")
 	if err != nil {
 		g.Log.Error("Unable to create the request", map[string]interface{}{"_error": err.Error()})
