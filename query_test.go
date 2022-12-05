@@ -73,7 +73,7 @@ func (suite *TestSuite) Test_GraphQL_Query() {
 	}{
 		{
 			name:          "Valid query, no cache",
-			endpoint:      "https://hasura.local/v1/graphql",
+			endpoint:      "https://telegram-bot.app/v1/graphql",
 			isLocal:       true,
 			cache_enabled: false,
 			args: args{
@@ -91,7 +91,7 @@ func (suite *TestSuite) Test_GraphQL_Query() {
 		},
 		{
 			name:          "Valid query, with cache empty",
-			endpoint:      "https://hasura.local/v1/graphql",
+			endpoint:      "https://telegram-bot.app/v1/graphql",
 			isLocal:       true,
 			cache_enabled: true,
 			args: args{
@@ -109,7 +109,7 @@ func (suite *TestSuite) Test_GraphQL_Query() {
 		},
 		{
 			name:          "Valid query, with cache filled",
-			endpoint:      "https://hasura.local/v1/graphql",
+			endpoint:      "https://telegram-bot.app/v1/graphql",
 			isLocal:       true,
 			cache_enabled: true,
 			args: args{
@@ -127,7 +127,7 @@ func (suite *TestSuite) Test_GraphQL_Query() {
 		},
 		{
 			name:     "Invalid query",
-			endpoint: "https://hasura.local/v1/graphql",
+			endpoint: "https://telegram-bot.app/v1/graphql",
 			isLocal:  true,
 			args: args{
 				queryContent: `query packages_pricez {
@@ -143,7 +143,7 @@ func (suite *TestSuite) Test_GraphQL_Query() {
 		},
 		{
 			name:     "Valid query to https endpoint",
-			endpoint: "https://hasura.local/v1/graphql",
+			endpoint: "https://telegram-bot.app/v1/graphql",
 			isLocal:  false,
 			args: args{
 				queryContent: `query packages_prices {
