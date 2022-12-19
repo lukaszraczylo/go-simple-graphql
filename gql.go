@@ -20,7 +20,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/allegro/bigcache/v3"
+	bigcache "github.com/allegro/bigcache/v3"
 	jsoniter "github.com/json-iterator/go"
 	"github.com/lukaszraczylo/go-simple-graphql/pkg/logging"
 	retry "github.com/sethvargo/go-retry"
