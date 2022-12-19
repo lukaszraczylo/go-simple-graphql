@@ -5,13 +5,12 @@ go 1.18
 require (
 	github.com/allegro/bigcache/v3 v3.1.0
 	github.com/avast/retry-go v3.0.0+incompatible
-	github.com/buger/jsonparser v1.1.1
 	github.com/json-iterator/go v1.1.12
 	github.com/lukaszraczylo/pandati v0.0.15
 	github.com/rs/zerolog v1.28.0
-	github.com/sethvargo/go-retry v0.2.3
+	github.com/sethvargo/go-retry v0.2.4
 	github.com/stretchr/testify v1.7.1
-	golang.org/x/net v0.2.0
+	golang.org/x/net v0.4.0
 )
 
 require (
