@@ -9,6 +9,7 @@ Ps. It's Hasura friendly.
   - [Features](#features)
   - [Usage example](#usage-example)
     - [Environment variables](#environment-variables)
+    - [Cache](#cache)
     - [Example reader code](#example-reader-code)
   - [Working with results](#working-with-results)
 
@@ -36,6 +37,22 @@ Therefore, I present you the simple client to which you can copy & paste your gr
 * `RETRIES_ENABLE` - Should retries be enabled? Default: `false`
 * `RETRIES_NUMBER` - Number of retries: Default: `1`
 * `RETRIES_DELAY` - Delay in retries in milliseconds. Default: `250`
+
+### Cache
+
+You have two options to enable the cache:
+
+* Use `GRAPHQL_CACHE` environment variable which will enable the cache globally. It may be desired if you want to use the cache for all queries.
+* Add `gqlcache: true` header for your query which will enable the cache for this query only with `GRAPHQL_CACHE_TTL` TTL.
+
+Example:
+
+```go
+headers := map[string]interface{}{
+  ...
+  "gqlcache": true,
+}
+```
 
 ### Example reader code
 

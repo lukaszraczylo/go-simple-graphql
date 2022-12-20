@@ -6,6 +6,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/lukaszraczylo/pandati"
 	"github.com/rs/zerolog"
 )
 
@@ -16,14 +17,14 @@ type LogConfig struct {
 
 func NewLogger() *LogConfig {
 	log := new(LogConfig)
-	dll := os.Getenv("LOG_LEVEL")
-	if dll == "debug" {
+	switch dll := os.Getenv("LOG_LEVEL"); dll {
+	case "debug":
 		zerolog.SetGlobalLevel(zerolog.DebugLevel)
-	} else if dll == "warn" {
+	case "warn":
 		zerolog.SetGlobalLevel(zerolog.WarnLevel)
-	} else if dll == "error" {
+	case "error":
 		zerolog.SetGlobalLevel(zerolog.ErrorLevel)
-	} else {
+	default:
 		zerolog.SetGlobalLevel(zerolog.InfoLevel)
 	}
 	zerolog.TimeFieldFormat = time.RFC3339
@@ -36,12 +37,36 @@ func NewLogger() *LogConfig {
 	return log
 }
 
-func (l *LogConfig) Log(level zerolog.Level, message string, v ...map[string]interface{}) {
-	contextLog := l.Logger.WithLevel(level)
+func (l *LogConfig) Critical(message string, v ...map[string]interface{}) {
+	w := l.Logger.Output(os.Stderr)
+	log(w.Fatal(), message, v...)
+}
+
+func (l *LogConfig) Error(message string, v ...map[string]interface{}) {
+	w := l.Logger.Output(os.Stderr)
+	log(w.Error(), message, v...)
+}
+
+func (l *LogConfig) Warning(message string, v ...map[string]interface{}) {
+	w := l.Logger.Output(os.Stdout)
+	log(w.Warn(), message, v...)
+}
+
+func (l *LogConfig) Info(message string, v ...map[string]interface{}) {
+	w := l.Logger.Output(os.Stdout)
+	log(w.Info(), message, v...)
+}
+
+func (l *LogConfig) Debug(message string, v ...map[string]interface{}) {
+	w := l.Logger.Output(os.Stdout)
+	log(w.Debug(), message, v...)
+}
+
+func log(contextLog *zerolog.Event, message string, v ...map[string]interface{}) {
 	if len(v) > 0 {
 		for _, m := range v {
 			for k, v := range m {
-				if v != nil && k != "" {
+				if !pandati.IsZero(v) && !pandati.IsZero(k) {
 					contextLog.Str(k, fmt.Sprintf("%v", v))
 				}
 			}
@@ -49,24 +74,4 @@ func (l *LogConfig) Log(level zerolog.Level, message string, v ...map[string]int
 	}
 	// contextLog.Str("_stack_trace", pandati.Trace())
 	contextLog.Msg(message)
-}
-
-func (l *LogConfig) Critical(message string, v ...map[string]interface{}) {
-	l.Log(zerolog.FatalLevel, message, v...)
-}
-
-func (l *LogConfig) Error(message string, v ...map[string]interface{}) {
-	l.Log(zerolog.ErrorLevel, message, v...)
-}
-
-func (l *LogConfig) Warning(message string, v ...map[string]interface{}) {
-	l.Log(zerolog.WarnLevel, message, v...)
-}
-
-func (l *LogConfig) Info(message string, v ...map[string]interface{}) {
-	l.Log(zerolog.InfoLevel, message, v...)
-}
-
-func (l *LogConfig) Debug(message string, v ...map[string]interface{}) {
-	l.Log(zerolog.DebugLevel, message, v...)
 }

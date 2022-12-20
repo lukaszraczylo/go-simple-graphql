@@ -50,6 +50,12 @@ func (g *GraphQL) Query(queryContent string, queryVariables interface{}, queryHe
 	var queryResult *queryResults
 	queryHash := fmt.Sprintf("%x", md5.Sum(query))
 
+	// If header 'gqlcache' is set to true, we will enforce the cache for the query
+	if !pandati.IsZero(queryHeaders) && !pandati.IsZero(queryHeaders["gqlcache"]) && queryHeaders["gqlcache"].(bool) {
+		g.Log.Debug("Forced cache for query", map[string]interface{}{"_query": queryContent, "_headers": queryHeaders})
+		g.Cache = true
+	}
+
 	if g.Cache {
 		g.Log.Debug("Checking the cache for the query", map[string]interface{}{"_query": queryHash})
 		if entry, entryInfo, err := g.CacheStore.GetWithInfo(queryHash); err == nil {

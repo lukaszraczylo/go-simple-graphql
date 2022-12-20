@@ -126,6 +126,69 @@ func (suite *TestSuite) Test_GraphQL_Query() {
 			wantErr:    false,
 		},
 		{
+			name:          "Valid query, with cache per query empty",
+			endpoint:      "https://telegram-bot.app/v1/graphql",
+			isLocal:       true,
+			cache_enabled: false,
+			args: args{
+				queryContent: `query packages_prices_no_inlinecache {
+					sub_group_packages_aggregate(where: {enabled: {_eq: true}}) {
+						aggregate {
+							count
+						}
+					}
+				}`,
+				queryVariables: nil,
+				queryHeaders: map[string]interface{}{
+					"gqlcache": false,
+				},
+			},
+			wantResult: `{"sub_group_packages_aggregate":{"aggregate":{"count":4}}}`,
+			wantErr:    false,
+		},
+		{
+			name:          "Valid query, with cache per query",
+			endpoint:      "https://telegram-bot.app/v1/graphql",
+			isLocal:       true,
+			cache_enabled: false,
+			args: args{
+				queryContent: `query packages_prices_inlinecache {
+					sub_group_packages_aggregate(where: {enabled: {_eq: true}}) {
+						aggregate {
+							count
+						}
+					}
+				}`,
+				queryVariables: nil,
+				queryHeaders: map[string]interface{}{
+					"gqlcache": true,
+				},
+			},
+			wantResult: `{"sub_group_packages_aggregate":{"aggregate":{"count":4}}}`,
+			wantErr:    false,
+		},
+		{
+			name:          "Valid query, with cache per query [verify]",
+			endpoint:      "https://telegram-bot.app/v1/graphql",
+			isLocal:       true,
+			cache_enabled: false,
+			args: args{
+				queryContent: `query packages_prices_inlinecache {
+					sub_group_packages_aggregate(where: {enabled: {_eq: true}}) {
+						aggregate {
+							count
+						}
+					}
+				}`,
+				queryVariables: nil,
+				queryHeaders: map[string]interface{}{
+					"gqlcache": true,
+				},
+			},
+			wantResult: `{"sub_group_packages_aggregate":{"aggregate":{"count":4}}}`,
+			wantErr:    false,
+		},
+		{
 			name:          "Valid query, with cache filled",
 			endpoint:      "https://telegram-bot.app/v1/graphql",
 			isLocal:       true,
