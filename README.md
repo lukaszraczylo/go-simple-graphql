@@ -11,6 +11,7 @@ Ps. It's Hasura friendly.
     - [Environment variables](#environment-variables)
     - [Cache](#cache)
     - [Example reader code](#example-reader-code)
+    - [Tips](#tips)
   - [Working with results](#working-with-results)
 
 ## Reasoning
@@ -63,31 +64,38 @@ import (
   graphql "github.com/lukaszraczylo/go-simple-graphql"
 )
 
-headers := map[string]interface{}{
-  "x-hasura-user-id":   37,
-  "x-hasura-user-uuid": "bde1962e-b42e-1212-ac10-d43fa27f44a5",
-}
-
-variables := map[string]interface{}{
-  "fileHash": "123deadc0w321",
-}
-
-query := `query searchFileKnown($fileHash: String) {
-  tbl_file_scans(where: {file_hash: {_eq: $fileHash}}) {
-  	racy
-  	violence
-  	virus
+func main() {
+  headers := map[string]interface{}{
+    "x-hasura-user-id":   37,
+    "x-hasura-user-uuid": "bde1962e-b42e-1212-ac10-d43fa27f44a5",
   }
-}`
 
-gql := graphql.NewConnection()
-result, err := gql.Query(query, variables, headers)
-if err != nil {
-  fmt.Println("Query error", err)
-  return
+  variables := map[string]interface{}{
+    "fileHash": "123deadc0w321",
+  }
+
+  query := `query searchFileKnown($fileHash: String) {
+    tbl_file_scans(where: {file_hash: {_eq: $fileHash}}) {
+    	racy
+    	violence
+    	virus
+    }
+  }`
+
+  gql := graphql.NewConnection()
+  result, err := gql.Query(query, variables, headers)
+  if err != nil {
+    fmt.Println("Query error", err)
+    return
+  }
+  fmt.Println(result)
 }
-fmt.Println(result)
 ```
+
+### Tips
+
+* Connection handler ( `gql := graphql.NewConnection()` ) should be created once and reused in the application especially if you run dozens of queries per second. It will allow you also to use cache and http2 to its full potential.
+
 
 **Result**
 
