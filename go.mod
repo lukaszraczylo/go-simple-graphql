@@ -11,7 +11,7 @@ require (
 	github.com/rs/zerolog v1.29.0
 	github.com/sethvargo/go-retry v0.2.4
 	github.com/stretchr/testify v1.7.1
-	golang.org/x/net v0.5.0
+	golang.org/x/net v0.7.0
 )
 
 require (
@@ -26,7 +26,7 @@ require (
 	github.com/tidwall/match v1.1.1 // indirect
 	github.com/tidwall/pretty v1.2.1 // indirect
 	github.com/wI2L/jsondiff v0.3.0 // indirect
-	golang.org/x/sys v0.4.0 // indirect
-	golang.org/x/text v0.6.0 // indirect
+	golang.org/x/sys v0.5.0 // indirect
+	golang.org/x/text v0.7.0 // indirect
 	gopkg.in/yaml.v3 v3.0.0 // indirect
 )
