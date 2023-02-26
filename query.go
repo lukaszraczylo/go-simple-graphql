@@ -83,6 +83,7 @@ func (g *GraphQL) Query(queryContent string, queryVariables interface{}, queryHe
 
 	err = retry.Do(
 		func() error {
+			g.Log.Debug("Sending the query")
 			httpResponse, err = g.HttpClient.Do(httpRequest)
 
 			if err != nil {

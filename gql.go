@@ -15,7 +15,6 @@ package gql
 import (
 	"crypto/tls"
 	"fmt"
-	"net"
 	"net/http"
 	"os"
 	"strconv"
@@ -83,25 +82,30 @@ func setCacheEnabled() bool {
 }
 
 func NewConnection() *GraphQL {
+
+	endpoint := pickGraphqlEndpoint()
+	var httpClient *http.Client
+	if strings.HasPrefix(endpoint, "http://") {
+		// HTTP/1.1 client
+		httpClient = &http.Client{}
+	} else {
+		// HTTP/2 or HTTPS client
+		http2Transport := &http2.Transport{
+			AllowHTTP: true,
+		}
+		if strings.HasPrefix(endpoint, "https://") {
+			http2Transport.TLSClientConfig = &tls.Config{
+				InsecureSkipVerify: true,
+			}
+		}
+		httpClient = &http.Client{
+			Transport: http2Transport,
+		}
+	}
+
 	g := GraphQL{
-		Endpoint: pickGraphqlEndpoint(),
-		HttpClient: &http.Client{
-			Transport: &http2.Transport{
-				DialTLS: func(network, addr string, cfg *tls.Config) (net.Conn, error) {
-					if strings.HasPrefix(network, "http") {
-						return net.Dial(network, addr)
-					}
-					return tls.Dial(network, addr, cfg)
-				},
-				ReadIdleTimeout:    30 * time.Second,
-				DisableCompression: false,
-				AllowHTTP:          true,
-				PingTimeout:        5 * time.Second,
-				TLSClientConfig: &tls.Config{
-					InsecureSkipVerify: true,
-				},
-			},
-		},
+		Endpoint:      endpoint,
+		HttpClient:    httpClient,
 		Log:           logging.NewLogger(),
 		Cache:         setCacheEnabled(),
 		CacheStore:    setupCache(),
