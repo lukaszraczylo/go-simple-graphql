@@ -15,9 +15,11 @@ package gql
 import (
 	"crypto/tls"
 	"fmt"
+	"net"
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	bigcache "github.com/allegro/bigcache/v3"
@@ -85,6 +87,12 @@ func NewConnection() *GraphQL {
 		Endpoint: pickGraphqlEndpoint(),
 		HttpClient: &http.Client{
 			Transport: &http2.Transport{
+				DialTLS: func(network, addr string, cfg *tls.Config) (net.Conn, error) {
+					if strings.HasPrefix(network, "http") {
+						return net.Dial(network, addr)
+					}
+					return tls.Dial(network, addr, cfg)
+				},
 				ReadIdleTimeout:    30 * time.Second,
 				DisableCompression: false,
 				AllowHTTP:          true,
