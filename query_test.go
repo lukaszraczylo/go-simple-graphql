@@ -11,8 +11,8 @@ import (
 func (suite *TestSuite) Test_GraphQL_queryBuilder() {
 
 	type args struct {
-		queryContent   string
 		queryVariables interface{}
+		queryContent   string
 	}
 	tests := []struct {
 		name    string
@@ -26,7 +26,7 @@ func (suite *TestSuite) Test_GraphQL_queryBuilder() {
 				queryContent:   `query listUserBots { tbl_bots { bot_name } }`,
 				queryVariables: nil,
 			},
-			want:    []byte(`{"query":"query listUserBots { tbl_bots { bot_name } }","variables":null}`),
+			want:    []byte(`{"variables":null,"query":"query listUserBots { tbl_bots { bot_name } }"}`),
 			wantErr: false,
 		},
 		{
@@ -35,7 +35,7 @@ func (suite *TestSuite) Test_GraphQL_queryBuilder() {
 				queryContent:   `query listUserBots { tbl_bots { bot_name } }`,
 				queryVariables: map[string]interface{}{"user_id": 1},
 			},
-			want:    []byte(`{"query":"query listUserBots { tbl_bots { bot_name } }","variables":{"user_id":1}}`),
+			want:    []byte(`{"variables":{"user_id":1},"query":"query listUserBots { tbl_bots { bot_name } }"}`),
 			wantErr: false,
 		},
 	}
@@ -58,17 +58,17 @@ func (suite *TestSuite) Test_GraphQL_Query() {
 	g := NewConnection()
 
 	type args struct {
-		queryContent   string
 		queryVariables interface{}
 		queryHeaders   map[string]interface{}
+		queryContent   string
 	}
 	tests := []struct {
+		args          args
 		name          string
 		endpoint      string
+		wantResult    string
 		isLocal       bool
 		cache_enabled bool
-		args          args
-		wantResult    string
 		wantErr       bool
 	}{
 		{

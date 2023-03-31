@@ -13,8 +13,8 @@ import (
 )
 
 type requestBase struct {
-	Query     string      `json:"query"`
 	Variables interface{} `json:"variables"`
+	Query     string      `json:"query"`
 }
 
 type queryResults struct {

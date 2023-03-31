@@ -33,15 +33,15 @@ var (
 )
 
 type GraphQL struct {
-	Endpoint      string
+	BackoffSetup  retry.Backoff
 	HttpClient    *http.Client
 	Log           *logging.LogConfig
-	Cache         bool // Enable caching for read queries
 	CacheStore    *bigcache.BigCache
-	RetriesEnable bool
+	Endpoint      string
 	RetriesNumber int
 	RetriesDelay  time.Duration
-	BackoffSetup  retry.Backoff
+	Cache         bool
+	RetriesEnable bool
 }
 
 func pickGraphqlEndpoint() (graphqlEndpoint string) {

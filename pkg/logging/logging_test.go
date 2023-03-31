@@ -82,9 +82,9 @@ func (suite *LoggingTestSuite) TestLogConfig_AllHandlers() {
 		wantLevel      string
 		wantMessage    string
 		envMinLogLevel string
+		loggerType     string
 		stdOutExpect   bool
 		stdErrExpect   bool
-		loggerType     string
 	}{
 		{
 			name:       "Test log: Error",
@@ -232,21 +232,21 @@ func (suite *LoggingTestSuite) TestLogConfig_AllHandlers() {
 
 func (suite *LoggingTestSuite) TestFullMessage() {
 	type args struct {
-		message     string
 		extraFields map[string]interface{}
+		message     string
 	}
 	extraFields := make(map[string]interface{})
 	extraFields["_full_message"] = "full message"
 
 	tests := []struct {
-		name           string
 		args           args
+		name           string
 		wantLevel      string
 		wantMessage    string
 		envMinLogLevel string
+		loggerType     string
 		stdOutExpect   bool
 		stdErrExpect   bool
-		loggerType     string
 	}{
 		{
 			name:       "Test log: Error",

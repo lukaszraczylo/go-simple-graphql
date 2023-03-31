@@ -35,9 +35,9 @@ func (suite *TestSuite) TestNewConnection() {
 		endpoint string
 	}
 	tests := []struct {
+		want *GraphQL
 		name string
 		args args
-		want *GraphQL
 	}{
 		{
 			name: "New connection: Env variable endpoint",
