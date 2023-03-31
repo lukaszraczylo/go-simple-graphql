@@ -86,17 +86,17 @@ func NewConnection() *GraphQL {
 	endpoint := pickGraphqlEndpoint()
 	var httpClient *http.Client
 	if strings.HasPrefix(endpoint, "http://") {
-		// HTTP/1.1 client
-		httpClient = &http.Client{}
-	} else {
-		// HTTP/2 or HTTPS client
-		http2Transport := &http2.Transport{
-			AllowHTTP: true,
+		httpClient = &http.Client{
+			Transport: http.DefaultTransport,
 		}
+	} else {
+		tlsClientConfig := &tls.Config{}
 		if strings.HasPrefix(endpoint, "https://") {
-			http2Transport.TLSClientConfig = &tls.Config{
-				InsecureSkipVerify: true,
-			}
+			tlsClientConfig.InsecureSkipVerify = true
+		}
+		http2Transport := &http2.Transport{
+			AllowHTTP:       true,
+			TLSClientConfig: tlsClientConfig,
 		}
 		httpClient = &http.Client{
 			Transport: http2Transport,

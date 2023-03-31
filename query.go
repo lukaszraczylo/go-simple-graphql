@@ -47,21 +47,21 @@ func (g *GraphQL) Query(queryContent string, queryVariables interface{}, queryHe
 	}
 
 	var body []byte
-	var queryResult *queryResults
-	queryHash := fmt.Sprintf("%x", md5.Sum(query))
+	var queryResult queryResults
+	var queryHash string
 
+	cacheEnabled := queryHeaders["gqlcache"] == true
 	// If header 'gqlcache' is set to true, we will enforce the cache for the query
-	if !pandati.IsZero(queryHeaders) && !pandati.IsZero(queryHeaders["gqlcache"]) && queryHeaders["gqlcache"].(bool) {
+	if cacheEnabled || g.Cache {
 		g.Log.Debug("Forced cache for query", map[string]interface{}{"_query": queryContent, "_headers": queryHeaders})
 		g.Cache = true
-	}
+		queryHash = fmt.Sprintf("%x", md5.Sum(query))
 
-	if g.Cache {
 		g.Log.Debug("Checking the cache for the query", map[string]interface{}{"_query": queryHash})
 		if entry, entryInfo, err := g.CacheStore.GetWithInfo(queryHash); err == nil {
 			g.Log.Debug("Found the query in the cache", map[string]interface{}{"_query": queryHash})
 			if pandati.IsZero(entryInfo.EntryStatus) {
-				return string(entry), nil
+				return pandati.BytesToString(entry), nil
 			}
 		} else {
 			g.Log.Debug("Unable to find the query in the cache", map[string]interface{}{"_query": queryHash, "_error": err.Error()})
@@ -76,7 +76,7 @@ func (g *GraphQL) Query(queryContent string, queryVariables interface{}, queryHe
 	}
 
 	for header, value := range queryHeaders {
-		httpRequest.Header.Add(fmt.Sprintf("%v", header), fmt.Sprintf("%v", value))
+		httpRequest.Header.Add(header, fmt.Sprintf("%v", value))
 	}
 
 	var httpResponse *http.Response
@@ -130,7 +130,7 @@ func (g *GraphQL) Query(queryContent string, queryVariables interface{}, queryHe
 	if g.Cache {
 		g.Log.Debug("Caching the query", map[string]interface{}{"_query": queryHash})
 		if queryContent[0:5] == "query" {
-			err = g.CacheStore.Set(queryHash, []byte(responseContent))
+			err = g.CacheStore.Set(queryHash, pandati.StringToBytes(responseContent))
 			if err != nil {
 				g.Log.Error("Unable to cache the query", map[string]interface{}{"_query": queryHash, "_error": err.Error()})
 			}
