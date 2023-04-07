@@ -36,9 +36,9 @@ Therefore, I present you the simple client to which you can copy & paste your gr
 * `GRAPHQL_CACHE_TTL` -  Cache TTL in seconds for SELECT type of queries. Default: `5`
 * `GRAPHQL_OUTPUT` - Output format. Default: `byte`, available: `byte`, `string`
 * `LOG_LEVEL` - Logging level. Default: `info` available: `debug`, `info`, `warn`, `error`
-<!-- * `RETRIES_ENABLE` - Should retries be enabled? Default: `false`
-* `RETRIES_NUMBER` - Number of retries: Default: `1`
-* `RETRIES_DELAY` - Delay in retries in milliseconds. Default: `250` -->
+* `GRAPHQL_RETRIES_ENABLE` - Should retries be enabled? Default: `true`
+* `GRAPHQL_RETRIES_NUMBER` - Number of retries: Default: `1`
+* `GRAPHQL_RETRIES_DELAY` - Delay in retries in milliseconds. Default: `250`
 
 ### Cache
 
@@ -106,7 +106,9 @@ func main() {
 
 ## Working with results
 
-I'm using an amazing library [tidwall/gjson](https://github.com/tidwall/gjson) to parse the results and extract the information required in further steps and I strongly recommend this approach as the easiest and close to painless, for example:
+Currently attempting to switch to the fork of the [`ask` library](https://github.com/lukaszraczylo/ask)
+
+Before, I used an amazing library [tidwall/gjson](https://github.com/tidwall/gjson) to parse the results and extract the information required in further steps and I strongly recommend this approach as the easiest and close to painless, for example:
 
 ```go
 result := gjson.Get(result, "tbl_user_group_admins.0.is_admin").Bool()

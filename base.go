@@ -40,6 +40,10 @@ func NewConnection() *BaseClient {
 	b.cache.enabled = envutil.GetBool("GRAPHQL_CACHE_ENABLED", true)
 	b.cache.ttl = envutil.GetInt("GRAPHQL_CACHE_TTL", 60)
 
+	b.retries.enabled = envutil.GetBool("GRAPHQL_RETRIES_ENABLED", true)
+	b.retries.max = envutil.GetInt("GRAPHQL_RETRIES_MAX", 1)
+	b.retries.delay = envutil.GetInt("GRAPHQL_RETRIES_DELAY", 300)
+
 	if b.cache.enabled {
 		var err error
 		b.cache.client, err = bigcache.NewBigCache(bigcache.DefaultConfig(time.Duration(b.cache.ttl) * time.Second))

@@ -16,6 +16,12 @@ type cacheStore struct {
 	enabled bool
 }
 
+type retriesConfig struct {
+	enabled bool
+	max     int
+	delay   int
+}
+
 type BaseClient struct {
 	Logger             Logger
 	LoggerWriter       Writer
@@ -28,6 +34,7 @@ type BaseClient struct {
 	LoggingLevel       logger.LogLevel
 	LoggerColorful     bool
 	validate           bool
+	retries            retriesConfig
 }
 
 type Query struct {

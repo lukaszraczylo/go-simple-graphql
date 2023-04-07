@@ -11,6 +11,7 @@ require (
 )
 
 require (
+	github.com/avast/retry-go/v4 v4.3.3 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/gookit/color v1.5.3 // indirect
 	github.com/kr/pretty v0.3.0 // indirect
