@@ -11,7 +11,7 @@ help:  ## display this help
 
 .PHONY: test
 test: ## run tests on library
-	@LOG_LEVEL=debug go test $(ADDITIONAL_BUILD_FLAGS) -v -cover ./...
+	@LOG_LEVEL=debug go test $(ADDITIONAL_BUILD_FLAGS) -v -cover ./... -race
 
 .PHONY: test-packages
 test-packages: ## run tests on packages
@@ -23,6 +23,7 @@ all: test-packages test
 .PHONY: update
 update: ## update dependencies
 	@go get -u -v ./...
+	@go mod tidy -v
 
 sonar:
 	sonar-scanner \

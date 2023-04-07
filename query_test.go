@@ -163,11 +163,14 @@ func TestBaseClient_Query(t *testing.T) {
 		wantErr bool
 	}{
 		{
-			name:   "Test Query - failing",
-			fields: fields{},
+			name: "Test Query - failing",
+			fields: fields{
+				graphql_endpoint: "https://spacex-production.up.railway.app/",
+			},
 			args: args{
 				queryContent: "query { hello }",
 			},
+			want:    ``,
 			wantErr: true,
 		},
 		{
@@ -227,12 +230,12 @@ func TestBaseClient_Query(t *testing.T) {
 			for i := 0; i < repeat; i++ {
 
 				got, err := c.Query(tt.args.queryContent, tt.args.queryVariables, tt.args.queryHeaders)
-				if (err != nil) != tt.wantErr {
-					t.Errorf("BaseClient.Query() error = %v, wantErr %v", err, tt.wantErr)
-					return
-				}
-				if !tt.wantErr && !reflect.DeepEqual(got, tt.want) {
-					t.Errorf("BaseClient.Query() = %v, want %v", got, tt.want)
+
+				if err != nil && tt.wantErr {
+					assert.Error(t, err)
+				} else {
+					assert.NoError(t, err)
+					assert.Equal(t, tt.want, got)
 				}
 			}
 		})
