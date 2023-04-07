@@ -289,3 +289,53 @@ func BenchmarkQueryWithCache(b *testing.B) {
 		}`, nil, nil)
 	}
 }
+
+func TestBaseClient_parseQueryHeaders(t *testing.T) {
+	type fields struct {
+	}
+	type args struct {
+		queryHeaders map[string]interface{}
+	}
+	tests := []struct {
+		name              string
+		fields            fields
+		args              args
+		wantReturnHeaders map[string]interface{}
+	}{
+		{
+			name:   "Test parseQueryHeaders - no change",
+			fields: fields{},
+			args: args{
+				queryHeaders: map[string]interface{}{
+					"x-test-header":      "test",
+					"x-test-header-next": true,
+				},
+			},
+			wantReturnHeaders: map[string]interface{}{
+				"x-test-header":      "test",
+				"x-test-header-next": true,
+			},
+		},
+		{
+			name:   "Test parseQueryHeaders - lib-headers removed",
+			fields: fields{},
+			args: args{
+				queryHeaders: map[string]interface{}{
+					"x-test-header": "test",
+					"gqlcache":      true,
+				},
+			},
+			wantReturnHeaders: map[string]interface{}{
+				"x-test-header": "test",
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := NewConnection()
+			if gotReturnHeaders := c.parseQueryHeaders(tt.args.queryHeaders); !reflect.DeepEqual(gotReturnHeaders, tt.wantReturnHeaders) {
+				t.Errorf("BaseClient.parseQueryHeaders() = %v, want %v", gotReturnHeaders, tt.wantReturnHeaders)
+			}
+		})
+	}
+}

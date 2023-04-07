@@ -2,6 +2,9 @@ package gql
 
 import (
 	"context"
+	"fmt"
+	"reflect"
+	"strconv"
 
 	"github.com/lukaszraczylo/go-simple-graphql/utils/helpers"
 
@@ -71,6 +74,13 @@ func (c *BaseClient) Query(queryContent string, queryVariables interface{}, quer
 
 	var queryHash string
 	var cachedResponse []byte
+	var cacheBaseClient BaseClient
+
+	// Check for library specific headers
+	if len(queryHeaders) > 0 {
+		cacheBaseClient = reflect.ValueOf(*c).Interface().(BaseClient)
+		queryHeaders = c.parseQueryHeaders(queryHeaders)
+	}
 
 	if c.cache.enabled {
 		queryHash = strutil.Md5(query.compiledQuery)
@@ -101,6 +111,10 @@ func (c *BaseClient) Query(queryContent string, queryVariables interface{}, quer
 		c.cache.client.Set(queryHash, jsonData)
 	}
 
+	if len(queryHeaders) > 0 {
+		*c = cacheBaseClient
+	}
+
 	return c.decodeResponse(jsonData), err
 }
 
@@ -114,4 +128,20 @@ func (c *BaseClient) decodeResponse(jsonData []byte) any {
 		c.Logger.Error(c, "Unknown response type", "response", c.responseType)
 		return nil
 	}
+}
+
+func (c *BaseClient) parseQueryHeaders(queryHeaders map[string]interface{}) (returnHeaders map[string]interface{}) {
+	returnHeaders = make(map[string]interface{})
+	for k, v := range queryHeaders {
+		if k == "gqlcache" {
+			c.cache.enabled, _ = strconv.ParseBool(fmt.Sprintf("%v", v))
+			continue
+		}
+		if k == "gqlretries" {
+			c.retries.enabled, _ = strconv.ParseBool(fmt.Sprintf("%v", v))
+			continue
+		}
+		returnHeaders[k] = v
+	}
+	return returnHeaders
 }

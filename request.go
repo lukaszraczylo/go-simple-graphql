@@ -18,7 +18,7 @@ func (c *BaseClient) executeQuery(query []byte, headers any) (result any, err er
 	}
 
 	for key, value := range headers.(map[string]interface{}) {
-		httpRequest.Header.Add(key, value.(string))
+		httpRequest.Header.Add(key, fmt.Sprintf("%s", value))
 	}
 
 	var httpResponse *http.Response

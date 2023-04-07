@@ -46,13 +46,17 @@ You have two options to enable the cache:
 
 * Use `GRAPHQL_CACHE_ENABLED` environment variable which will enable the cache globally. It may be desired if you want to use the cache for all queries.
 * Add `gqlcache: true` header for your query which will enable the cache for this query only with `GRAPHQL_CACHE_TTL` TTL.
+* You can check the list of supported per-query modifiers below
 
 Example:
 
 ```go
+// following values passed as headers will modify behaviour of the query
+// and disregard settings provided via environment variables
 headers := map[string]interface{}{
   ...
-  "gqlcache": true,
+  "gqlcache": true, // sets the cache as on for this query only
+  "gqlretries": false, // disables retries for this query only
 }
 ```
 

@@ -30,8 +30,6 @@ func NewConnection() *BaseClient {
 
 	if b.LoggerWriter == nil {
 		b.LoggerWriter = log.New(os.Stdout, "", log.LstdFlags)
-	} else {
-		b.LoggerWriter = b.LoggerWriter
 	}
 
 	b.endpoint = envutil.Getenv("GRAPHQL_ENDPOINT", "https://api.github.com/graphql")
@@ -95,4 +93,8 @@ func NewConnection() *BaseClient {
 	b.Logger.Debug(b, "graphQL client initialized;", "endpoint", b.endpoint, "responseType", b.responseType, "validate", b.validate, "cache", b.cache.enabled, "cacheTTL", b.cache.ttl, "maxGoRoutines", b.MaxGoRoutines, "loggingLevel", b_tmp_log_level, "loggerColorful", b.LoggerColorful)
 	b.Logger.Info(b, "graphQL client initialized;")
 	return b
+}
+
+func (b *BaseClient) SetEndpoint(endpoint string) {
+	b.endpoint = endpoint
 }

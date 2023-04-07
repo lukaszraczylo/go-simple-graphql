@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/lukaszraczylo/go-simple-graphql/utils/logger"
-
 	"github.com/stretchr/testify/assert"
 )
 
@@ -98,6 +97,35 @@ func TestNewConnectionLogLevels(t *testing.T) {
 			assert.Equal(t, tt.want.endpoint, got.endpoint)
 			assert.Equal(t, tt.want.responseType, got.responseType)
 			assert.Equal(t, tt.want.LoggingLevel, got.LoggingLevel)
+		})
+	}
+}
+
+func TestBaseClient_SetEndpoint(t *testing.T) {
+	type fields struct {
+	}
+	type args struct {
+		endpoint string
+	}
+	tests := []struct {
+		name   string
+		fields fields
+		args   args
+		want   string
+	}{
+		{
+			name: "Test SetEndpoint",
+			args: args{
+				endpoint: "https://potato/graphql",
+			},
+			want: "https://potato/graphql",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			b := NewConnection()
+			b.SetEndpoint(tt.args.endpoint)
+			assert.Equal(t, tt.want, b.endpoint)
 		})
 	}
 }
