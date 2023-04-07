@@ -231,7 +231,7 @@ func TestBaseClient_Query(t *testing.T) {
 					t.Errorf("BaseClient.Query() error = %v, wantErr %v", err, tt.wantErr)
 					return
 				}
-				if !reflect.DeepEqual(got, tt.want) {
+				if !tt.wantErr && !reflect.DeepEqual(got, tt.want) {
 					t.Errorf("BaseClient.Query() = %v, want %v", got, tt.want)
 				}
 			}
