@@ -32,18 +32,19 @@ Therefore, I present you the simple client to which you can copy & paste your gr
 ### Environment variables
 
 * `GRAPHQL_ENDPOINT` - Your GraphQL endpoint. Default: `http://127.0.0.1:9090/v1/graphql`
-* `GRAPHQL_CACHE` -  Should the query cache be enabled? Default: `false`
+* `GRAPHQL_CACHE_ENABLED` -  Should the query cache be enabled? Default: `false`
 * `GRAPHQL_CACHE_TTL` -  Cache TTL in seconds for SELECT type of queries. Default: `5`
-* `LOG_LEVEL` - Logging level. Default: `info`
-* `RETRIES_ENABLE` - Should retries be enabled? Default: `false`
+* `GRAPHQL_OUTPUT` - Output format. Default: `byte`, available: `byte`, `string`
+* `LOG_LEVEL` - Logging level. Default: `info` available: `debug`, `info`, `warn`, `error`
+<!-- * `RETRIES_ENABLE` - Should retries be enabled? Default: `false`
 * `RETRIES_NUMBER` - Number of retries: Default: `1`
-* `RETRIES_DELAY` - Delay in retries in milliseconds. Default: `250`
+* `RETRIES_DELAY` - Delay in retries in milliseconds. Default: `250` -->
 
 ### Cache
 
 You have two options to enable the cache:
 
-* Use `GRAPHQL_CACHE` environment variable which will enable the cache globally. It may be desired if you want to use the cache for all queries.
+* Use `GRAPHQL_CACHE_ENABLED` environment variable which will enable the cache globally. It may be desired if you want to use the cache for all queries.
 * Add `gqlcache: true` header for your query which will enable the cache for this query only with `GRAPHQL_CACHE_TTL` TTL.
 
 Example:

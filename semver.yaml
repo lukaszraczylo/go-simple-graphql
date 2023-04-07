@@ -1,8 +1,9 @@
 version: 1
 force:
   major: 1
-  minor: 0
+  minor: 1
   patch: 0
+  commit: 6a8f99f6ef8f65a303dad74c272ff12bf9fe526f
 wording:
   minor:
     - minor-release
