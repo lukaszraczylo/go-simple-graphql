@@ -334,7 +334,7 @@ func TestBaseClient_parseQueryHeaders(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			c := NewConnection()
-			if gotReturnHeaders, _ := c.parseQueryHeaders(tt.args.queryHeaders); !reflect.DeepEqual(gotReturnHeaders, tt.wantReturnHeaders) {
+			if gotReturnHeaders, _, _ := c.parseQueryHeaders(tt.args.queryHeaders); !reflect.DeepEqual(gotReturnHeaders, tt.wantReturnHeaders) {
 				t.Errorf("BaseClient.parseQueryHeaders() = %v, want %v", gotReturnHeaders, tt.wantReturnHeaders)
 			}
 		})

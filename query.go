@@ -3,7 +3,6 @@ package gql
 import (
 	"context"
 	"fmt"
-	"reflect"
 	"strconv"
 
 	"github.com/lukaszraczylo/go-simple-graphql/utils/helpers"
@@ -80,18 +79,17 @@ func (c *BaseClient) Query(queryContent string, queryVariables interface{}, quer
 
 	// Check for library specific headers
 	if len(queryHeaders) > 0 {
-		queryHeadersModified, cache_enabled := c.parseQueryHeaders(queryHeaders)
+		queryHeadersModified, cache_enabled, headers_modified := c.parseQueryHeaders(queryHeaders)
 
-		if !reflect.DeepEqual(queryHeadersModified, queryHeaders) {
-			if queryHeadersModified["gqlcache"] != nil && c.cache.enabled != cache_enabled {
-				c.Logger.Debug(c, "Switching cache on as per single-request header")
+		if headers_modified {
+			queryHeaders = queryHeadersModified
+			c.Logger.Debug(c, fmt.Sprintf("Switching cache %s as per single-request header", strconv.FormatBool(cache_enabled)))
+			if cache_enabled {
 
-				// Create a new BaseClient instance with the same settings as c, but with the cache enabled/disabled as required
-				if cache_enabled {
-					localClient.enableCache()
-				} else {
-					localClient.disableCache()
-				}
+				// this doesn't make sense - cache is created but its ttl is longer than query execution so it'll be disappeared before it's used
+				localClient.enableCache()
+			} else {
+				localClient.disableCache()
 			}
 		}
 	}
@@ -121,7 +119,7 @@ func (c *BaseClient) Query(queryContent string, queryVariables interface{}, quer
 		return nil, err
 	}
 
-	if localClient.cache.enabled && jsonData != nil && queryHash != "" {
+	if localClient.cache.enabled && c.cache.client != nil && jsonData != nil && queryHash != "" {
 		err = c.cache.client.Set(queryHash, jsonData)
 		if err != nil {
 			c.Logger.Error(c, "Error while setting cache key;", "error", err.Error())
@@ -155,12 +153,12 @@ func (c *BaseClient) decodeResponse(jsonData []byte) any {
 	}
 }
 
-func (c *BaseClient) parseQueryHeaders(queryHeaders map[string]interface{}) (returnHeaders map[string]interface{}, cache_enabled bool) {
+func (c *BaseClient) parseQueryHeaders(queryHeaders map[string]interface{}) (returnHeaders map[string]interface{}, cache_enabled bool, headers_modified bool) {
 	returnHeaders = make(map[string]interface{})
 	for k, v := range queryHeaders {
 		if k == "gqlcache" {
-			c.cache.enabled, _ = strconv.ParseBool(fmt.Sprintf("%v", v))
-			cache_enabled = true
+			cache_enabled, _ = strconv.ParseBool(fmt.Sprintf("%v", v))
+			headers_modified = true
 			continue
 		}
 		if k == "gqlretries" {
@@ -169,5 +167,5 @@ func (c *BaseClient) parseQueryHeaders(queryHeaders map[string]interface{}) (ret
 		}
 		returnHeaders[k] = v
 	}
-	return returnHeaders, cache_enabled
+	return returnHeaders, cache_enabled, headers_modified
 }

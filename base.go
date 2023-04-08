@@ -2,6 +2,7 @@ package gql
 
 import (
 	"crypto/tls"
+	"fmt"
 	"time"
 
 	"github.com/allegro/bigcache"
@@ -103,11 +104,13 @@ func (b *BaseClient) enableCache() {
 	var err error
 	b.cache.client, err = bigcache.NewBigCache(bigcache.DefaultConfig(time.Duration(b.cache.ttl) * time.Second))
 	if err != nil {
-		b.Logger.Error(b, "Error while creating cache client;", "error", err.Error())
+		fmt.Println(">> Error while creating cache client;", "error", err.Error())
+		panic(err)
 	}
 }
 
 func (b *BaseClient) disableCache() {
+	b.Logger.Debug(b, "Disabling cache")
 	b.cache.enabled = false
 	b.cache.client = nil
 }
