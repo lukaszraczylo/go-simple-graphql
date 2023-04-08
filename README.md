@@ -9,6 +9,7 @@ Ps. It's Hasura friendly.
   - [Features](#features)
   - [Usage example](#usage-example)
     - [Environment variables](#environment-variables)
+    - [Modifiers on the fly](#modifiers-on-the-fly)
     - [Cache](#cache)
     - [Example reader code](#example-reader-code)
     - [Tips](#tips)
@@ -39,6 +40,11 @@ Therefore, I present you the simple client to which you can copy & paste your gr
 * `GRAPHQL_RETRIES_ENABLE` - Should retries be enabled? Default: `true`
 * `GRAPHQL_RETRIES_NUMBER` - Number of retries: Default: `1`
 * `GRAPHQL_RETRIES_DELAY` - Delay in retries in milliseconds. Default: `250`
+
+### Modifiers on the fly
+
+* `gql.SetEndpoint('your-endpoint-url')` - modifies endpoint, without the need to set the environment variable
+* `gql.SetOutput('byte')` - modifies output format, without the need to set the environment variable
 
 ### Cache
 
