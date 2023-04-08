@@ -80,10 +80,13 @@ func (c *BaseClient) Query(queryContent string, queryVariables interface{}, quer
 	if len(queryHeaders) > 0 {
 		cacheBaseClient = reflect.ValueOf(*c).Interface().(BaseClient)
 		queryHeaders = c.parseQueryHeaders(queryHeaders)
+		defer func() {
+			*c = cacheBaseClient
+		}()
 	}
 
 	if c.cache.enabled {
-		queryHash = strutil.Md5(query.compiledQuery)
+		queryHash = strutil.Md5(fmt.Sprintf("%s-%+v", query.compiledQuery, queryHeaders))
 		c.Logger.Debug(c, "Hash calculated;", "hash:", queryHash)
 
 		cachedResponse = c.cacheLookup(queryHash)
@@ -109,10 +112,6 @@ func (c *BaseClient) Query(queryContent string, queryVariables interface{}, quer
 
 	if c.cache.enabled {
 		c.cache.client.Set(queryHash, jsonData)
-	}
-
-	if len(queryHeaders) > 0 {
-		*c = cacheBaseClient
 	}
 
 	return c.decodeResponse(jsonData), err
