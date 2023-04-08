@@ -33,7 +33,7 @@ func NewConnection() *BaseClient {
 	}
 
 	b.endpoint = envutil.Getenv("GRAPHQL_ENDPOINT", "https://api.github.com/graphql")
-	b.responseType = envutil.Getenv("GRAPHQL_OUTPUT", "mapstring")
+	b.responseType = envutil.Getenv("GRAPHQL_OUTPUT", "string")
 	b.validate = envutil.GetBool("GRAPHQL_VALIDATE", false)
 	b.cache.enabled = envutil.GetBool("GRAPHQL_CACHE_ENABLED", true)
 	b.cache.ttl = envutil.GetInt("GRAPHQL_CACHE_TTL", 60)
