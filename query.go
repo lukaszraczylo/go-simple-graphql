@@ -79,11 +79,11 @@ func (c *BaseClient) Query(queryContent string, queryVariables interface{}, quer
 
 	// Check for library specific headers
 	if len(queryHeaders) > 0 {
-		queryHeadersModified := cacheBaseClient.parseQueryHeaders(queryHeaders)
+		queryHeadersModified, cache_enabled := cacheBaseClient.parseQueryHeaders(queryHeaders)
 		// compare if there are any changes
 
 		if !reflect.DeepEqual(queryHeadersModified, queryHeaders) {
-			if cacheBaseClient.cache.enabled != c.cache.enabled && cacheBaseClient.cache.enabled {
+			if queryHeadersModified["gqlcache"] != nil && c.cache.enabled != cache_enabled {
 				cacheBaseClient.Logger.Debug(cacheBaseClient, "Switching cache on as per single-request header")
 				cbc := reflect.ValueOf(*c).Interface().(BaseClient)
 				cacheBaseClient := &cbc
@@ -148,11 +148,12 @@ func (c *BaseClient) decodeResponse(jsonData []byte) any {
 	}
 }
 
-func (c *BaseClient) parseQueryHeaders(queryHeaders map[string]interface{}) (returnHeaders map[string]interface{}) {
+func (c *BaseClient) parseQueryHeaders(queryHeaders map[string]interface{}) (returnHeaders map[string]interface{}, cache_enabled bool) {
 	returnHeaders = make(map[string]interface{})
 	for k, v := range queryHeaders {
 		if k == "gqlcache" {
 			c.cache.enabled, _ = strconv.ParseBool(fmt.Sprintf("%v", v))
+			cache_enabled = true
 			continue
 		}
 		if k == "gqlretries" {
@@ -161,5 +162,5 @@ func (c *BaseClient) parseQueryHeaders(queryHeaders map[string]interface{}) (ret
 		}
 		returnHeaders[k] = v
 	}
-	return returnHeaders
+	return returnHeaders, cache_enabled
 }
