@@ -73,8 +73,7 @@ func (c *BaseClient) Query(queryContent string, queryVariables interface{}, quer
 	var queryHash string
 	var cachedResponse []byte
 
-	cbc := reflect.ValueOf(*c).Interface().(BaseClient)
-	cacheBaseClient := &cbc
+	cacheBaseClient := c
 
 	query := cacheBaseClient.NewQuery(queryContent, queryVariables)
 
@@ -86,7 +85,9 @@ func (c *BaseClient) Query(queryContent string, queryVariables interface{}, quer
 		if !reflect.DeepEqual(queryHeadersModified, queryHeaders) {
 			if cacheBaseClient.cache.enabled != c.cache.enabled && cacheBaseClient.cache.enabled {
 				cacheBaseClient.Logger.Debug(cacheBaseClient, "Switching cache on as per single-request header")
-				c.enableCache()
+				cbc := reflect.ValueOf(*c).Interface().(BaseClient)
+				cacheBaseClient := &cbc
+				cacheBaseClient.enableCache()
 			}
 		}
 	}
