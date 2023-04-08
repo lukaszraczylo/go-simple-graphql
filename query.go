@@ -86,7 +86,7 @@ func (c *BaseClient) Query(queryContent string, queryVariables interface{}, quer
 		if !reflect.DeepEqual(queryHeadersModified, queryHeaders) {
 			if cacheBaseClient.cache.enabled != c.cache.enabled && cacheBaseClient.cache.enabled {
 				cacheBaseClient.Logger.Debug(cacheBaseClient, "Switching cache on as per single-request header")
-				cacheBaseClient.enableCache()
+				c.enableCache()
 			}
 		}
 	}
