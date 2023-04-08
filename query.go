@@ -122,11 +122,17 @@ func (c *BaseClient) decodeResponse(jsonData []byte) any {
 
 func (c *BaseClient) parseQueryHeaders(queryHeaders map[string]interface{}) (returnHeaders map[string]interface{}, cache_enabled bool, headers_modified bool) {
 	returnHeaders = make(map[string]interface{})
+	var err error
 
 	for k, v := range queryHeaders {
 		if k == "gqlcache" {
-			cache_enabled, _ = strconv.ParseBool(fmt.Sprintf("%v", v))
-			headers_modified = true
+			cache_enabled, err = strconv.ParseBool(fmt.Sprintf("%v", v))
+			if err != nil {
+				c.Logger.Error(c, "Can't parse gqlcache header", "error", err.Error())
+			}
+			if cache_enabled != c.cache.enabled {
+				headers_modified = true
+			}
 			continue
 		}
 		if k == "gqlretries" {

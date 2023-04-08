@@ -1,15 +1,9 @@
 package logger
 
 import (
+	"encoding/json"
 	"reflect"
-
-	"github.com/lukaszraczylo/go-simple-graphql/utils/helpers"
-	"github.com/lukaszraczylo/go-simple-graphql/utils/ordered_map"
-
-	jsoniter "github.com/json-iterator/go"
 )
-
-var json = jsoniter.ConfigCompatibleWithStandardLibrary
 
 const (
 	reset      = "\033[0m"
@@ -34,25 +28,25 @@ type Config struct {
 	LogLevel LogLevel
 }
 
-func Serialize(v any) (string, error) {
-	marshal, err := json.Marshal(internalSerialize(v))
+func Serialize(v interface{}) ([]byte, error) {
+	b, err := json.Marshal(internalSerialize(v))
 	if err != nil {
-		return "", err
+		return nil, err
 	}
-	return helpers.BytesToString(marshal), nil
+	return b, nil
 }
 
-func internalSerialize(v any) any {
+func internalSerialize(v interface{}) interface{} {
 	if v != nil {
 		switch reflect.TypeOf(v).Kind() {
 		case reflect.Struct:
-			r := ordered_map.New()
+			r := make(map[string]interface{})
 			name := reflect.TypeOf(v).Name()
 			if name != "" {
-				r.Set("_", reflect.TypeOf(v).String())
+				r["_"] = reflect.TypeOf(v).String()
 			}
 			for i := 0; i < reflect.ValueOf(v).NumField(); i++ {
-				r.Set(reflect.TypeOf(v).Field(i).Name, internalSerialize(reflect.ValueOf(v).Field(i).Interface()))
+				r[reflect.TypeOf(v).Field(i).Name] = internalSerialize(reflect.ValueOf(v).Field(i).Interface())
 			}
 			return r
 		case reflect.Ptr:
@@ -60,7 +54,7 @@ func internalSerialize(v any) any {
 				return internalSerialize(reflect.ValueOf(v).Elem().Interface())
 			}
 		case reflect.Slice:
-			var r []any
+			var r []interface{}
 			tmpSlice := reflect.ValueOf(v)
 			for i := 0; i < tmpSlice.Len(); i++ {
 				r = append(r, internalSerialize(tmpSlice.Index(i).Interface()))

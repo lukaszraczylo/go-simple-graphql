@@ -74,6 +74,7 @@ func (q *queryExecutor) execute() {
 		if cachedResponse != nil {
 			q.client.Logger.Debug(q.client, "Found cached response")
 			q.result.data = q.client.decodeResponse(cachedResponse)
+			return // return cached response
 		} else {
 			q.client.Logger.Debug(q.client, "No cached response found")
 		}
@@ -94,10 +95,7 @@ func (q *queryExecutor) execute() {
 	}
 
 	if q.should_cache {
-		err = q.client.cache.client.Set(q.hash, jsonData)
-		if err != nil {
-			q.client.Logger.Error(q.client, "Error while setting cache key;", "error", err.Error())
-		}
+		q.client.cache.client.Set(q.hash, jsonData, time.Duration(q.client.cache.ttl)*time.Second)
 	}
 
 	q.result.data = q.client.decodeResponse(jsonData)

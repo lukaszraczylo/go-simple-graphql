@@ -3,7 +3,7 @@ module github.com/lukaszraczylo/go-simple-graphql
 go 1.20
 
 require (
-	github.com/allegro/bigcache v1.2.1
+	github.com/akyoto/cache v1.0.6
 	github.com/avast/retry-go/v4 v4.3.3
 	github.com/gookit/goutil v0.6.8
 	github.com/json-iterator/go v1.1.12

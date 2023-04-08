@@ -4,14 +4,13 @@ import (
 	"context"
 	"net/http"
 
+	"github.com/akyoto/cache"
 	"github.com/lukaszraczylo/go-simple-graphql/utils/concurrency"
 	"github.com/lukaszraczylo/go-simple-graphql/utils/logger"
-
-	"github.com/allegro/bigcache"
 )
 
 type cacheStore struct {
-	client  *bigcache.BigCache
+	client  *cache.Cache
 	ttl     int
 	enabled bool
 }

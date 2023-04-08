@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/allegro/bigcache"
+	"github.com/akyoto/cache"
 	"github.com/lukaszraczylo/go-simple-graphql/utils/concurrency"
 	"github.com/lukaszraczylo/go-simple-graphql/utils/logger"
 
@@ -113,21 +113,7 @@ func (b *BaseClient) SetOutput(output string) {
 
 func (b *BaseClient) enableCache() {
 	var err error
-	b.cache.client, err = bigcache.NewBigCache(
-		// bigcache.DefaultConfig(time.Duration(b.cache.ttl) * time.Second)
-		bigcache.Config{
-			Shards:      1024,
-			LifeWindow:  time.Duration(b.cache.ttl) * time.Second,
-			CleanWindow: time.Duration(b.cache.ttl) * 2 * time.Second,
-			OnRemove: func(key string, entry []byte) {
-				b.Logger.Debug(b, "Removing cache entry;", "key", key)
-			},
-			MaxEntriesInWindow: 1000 * 10 * 60,
-			MaxEntrySize:       500,
-			Verbose:            true,
-			HardMaxCacheSize:   8192,
-		},
-	)
+	b.cache.client = cache.New(time.Duration(b.cache.ttl) * time.Second * 2)
 	if err != nil {
 		fmt.Println(">> Error while creating cache client;", "error", err.Error())
 		panic(err)

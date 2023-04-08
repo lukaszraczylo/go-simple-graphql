@@ -517,8 +517,8 @@ func TestBaseClient_QueryCacheRandomizedRaceViaHeader(t *testing.T) {
 			}
 
 			for i := 0; i < 10; i++ {
-				tt.args.queryHeaders["gqlcache"] = rand.Intn(2) == 0
 				go func() {
+					tt.args.queryHeaders["gqlcache"] = rand.Intn(2) == 0
 					_, err := c.Query(tt.args.queryContent, tt.args.queryVariables, tt.args.queryHeaders)
 					if !tt.wantErr {
 						assert.NoError(t, err)
