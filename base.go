@@ -98,3 +98,7 @@ func NewConnection() *BaseClient {
 func (b *BaseClient) SetEndpoint(endpoint string) {
 	b.endpoint = endpoint
 }
+
+func (b *BaseClient) SetOutput(output string) {
+	b.responseType = output
+}
