@@ -75,7 +75,8 @@ func (c *BaseClient) Query(queryContent string, queryVariables interface{}, quer
 
 	query := c.NewQuery(queryContent, queryVariables)
 
-	localClient := *c
+	localClientlocal := *c
+	localClient := &localClientlocal
 
 	// Check for library specific headers
 	if len(queryHeaders) > 0 {
