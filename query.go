@@ -73,62 +73,65 @@ func (c *BaseClient) Query(queryContent string, queryVariables interface{}, quer
 	var queryHash string
 	var cachedResponse []byte
 
-	cacheBaseClient := c
-	defer func() {
-		cacheBaseClient = nil
-	}()
+	query := c.NewQuery(queryContent, queryVariables)
 
-	query := cacheBaseClient.NewQuery(queryContent, queryVariables)
+	localClient := *c
 
 	// Check for library specific headers
 	if len(queryHeaders) > 0 {
-		queryHeadersModified, cache_enabled := cacheBaseClient.parseQueryHeaders(queryHeaders)
-		// compare if there are any changes
+		queryHeadersModified, cache_enabled := c.parseQueryHeaders(queryHeaders)
 
 		if !reflect.DeepEqual(queryHeadersModified, queryHeaders) {
 			if queryHeadersModified["gqlcache"] != nil && c.cache.enabled != cache_enabled {
-				cacheBaseClient.Logger.Debug(cacheBaseClient, "Switching cache on as per single-request header")
-				cbc := reflect.ValueOf(*c).Interface().(BaseClient)
-				cacheBaseClient := &cbc
-				cacheBaseClient.enableCache()
+				c.Logger.Debug(c, "Switching cache on as per single-request header")
+
+				// Create a new BaseClient instance with the same settings as c, but with the cache enabled/disabled as required
+				if cache_enabled {
+					localClient.enableCache()
+				} else {
+					localClient.disableCache()
+				}
 			}
 		}
 	}
 
-	if cacheBaseClient.cache.enabled {
+	if localClient.cache.enabled {
 		queryHash = strutil.Md5(fmt.Sprintf("%s-%+v", query.compiledQuery, queryHeaders))
-		cacheBaseClient.Logger.Debug(cacheBaseClient, "Hash calculated;", "hash:", queryHash)
+		c.Logger.Debug(c, "Hash calculated;", "hash:", queryHash)
 
 		cachedResponse = c.cacheLookup(queryHash)
 		if cachedResponse != nil {
-			cacheBaseClient.Logger.Debug(cacheBaseClient, "Found cached response")
-			return cacheBaseClient.decodeResponse(cachedResponse), nil
+			c.Logger.Debug(c, "Found cached response")
+			return c.decodeResponse(cachedResponse), nil
 		} else {
-			cacheBaseClient.Logger.Debug(cacheBaseClient, "No cached response found")
+			c.Logger.Debug(c, "No cached response found")
 		}
 	}
 
-	response, err := cacheBaseClient.executeQuery(query.compiledQuery, queryHeaders)
+	response, err := localClient.executeQuery(query.compiledQuery, queryHeaders)
 	if err != nil {
-		cacheBaseClient.Logger.Error(cacheBaseClient, "Error while executing query;", "error", err.Error())
+		c.Logger.Error(c, "Error while executing query;", "error", err.Error())
 		return nil, err
 	}
 
 	jsonData, err := json.Marshal(response)
 	if err != nil {
-		cacheBaseClient.Logger.Error(cacheBaseClient, "Error while converting to json;", "error", err.Error())
+		c.Logger.Error(c, "Error while converting to json;", "error", err.Error())
 		return nil, err
 	}
 
-	if cacheBaseClient.cache.enabled && jsonData != nil && queryHash != "" {
-		c.cache.client.Set(queryHash, jsonData)
-	} else if cacheBaseClient.cache.enabled && jsonData == nil {
-		cacheBaseClient.Logger.Warn(cacheBaseClient, "Response is empty")
-	} else if cacheBaseClient.cache.enabled && queryHash == "" {
-		cacheBaseClient.Logger.Warn(cacheBaseClient, "Query hash is empty")
+	if localClient.cache.enabled && jsonData != nil && queryHash != "" {
+		err = c.cache.client.Set(queryHash, jsonData)
+		if err != nil {
+			c.Logger.Error(c, "Error while setting cache key;", "error", err.Error())
+		}
+	} else if localClient.cache.enabled && c.cache.enabled && jsonData == nil {
+		c.Logger.Warn(c, "Response is empty")
+	} else if localClient.cache.enabled && c.cache.enabled && queryHash == "" {
+		c.Logger.Warn(c, "Query hash is empty")
 	}
 
-	return cacheBaseClient.decodeResponse(jsonData), err
+	return c.decodeResponse(jsonData), err
 }
 
 func (c *BaseClient) decodeResponse(jsonData []byte) any {

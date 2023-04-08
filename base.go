@@ -106,3 +106,8 @@ func (b *BaseClient) enableCache() {
 		b.Logger.Error(b, "Error while creating cache client;", "error", err.Error())
 	}
 }
+
+func (b *BaseClient) disableCache() {
+	b.cache.enabled = false
+	b.cache.client = nil
+}
