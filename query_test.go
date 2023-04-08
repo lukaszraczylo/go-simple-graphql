@@ -339,3 +339,77 @@ func TestBaseClient_parseQueryHeaders(t *testing.T) {
 		})
 	}
 }
+
+func TestBaseClient_QueryCache(t *testing.T) {
+	type fields struct {
+		graphql_endpoint string
+		cache_enabled    bool
+	}
+	type args struct {
+		queryVariables interface{}
+		queryHeaders   map[string]interface{}
+		queryContent   string
+	}
+	tests := []struct {
+		want    any
+		args    args
+		name    string
+		fields  fields
+		wantErr bool
+	}{
+		{
+			name: "Test QueryCache - enabled",
+			fields: fields{
+				graphql_endpoint: "https://spacex-production.up.railway.app/",
+				cache_enabled:    true,
+			},
+			args: args{
+				queryContent: `query Dragons {
+					dragons {
+						name
+					}
+				}`,
+				queryHeaders: map[string]interface{}{
+					"x-apollo-operation-name": "Missions-Potato-Test-Golang",
+					"content-type":            "application/json",
+				},
+			},
+		},
+		{
+			name: "Test QueryCache - disabled",
+			fields: fields{
+				graphql_endpoint: "https://spacex-production.up.railway.app/",
+				cache_enabled:    false,
+			},
+			args: args{
+				queryContent: `query Dragons {
+					dragons {
+						name
+					}
+				}`,
+				queryHeaders: map[string]interface{}{
+					"x-apollo-operation-name": "Missions-Potato-Test-Golang",
+					"content-type":            "application/json",
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := NewConnection()
+			c.cache.enabled = tt.fields.cache_enabled
+
+			if tt.fields.graphql_endpoint != "" {
+				c.endpoint = tt.fields.graphql_endpoint
+			}
+
+			_, err := c.Query(tt.args.queryContent, tt.args.queryVariables, tt.args.queryHeaders)
+			if !tt.wantErr {
+				assert.NoError(t, err)
+			} else {
+				assert.Error(t, err)
+			}
+		})
+	}
+}

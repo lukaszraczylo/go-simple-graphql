@@ -70,51 +70,54 @@ func (c *BaseClient) NewQuery(q ...any) *Query {
 // It looks a bit weird because of the backward compatibility
 
 func (c *BaseClient) Query(queryContent string, queryVariables interface{}, queryHeaders map[string]interface{}) (any, error) {
-	query := c.NewQuery(queryContent, queryVariables)
-
 	var queryHash string
 	var cachedResponse []byte
-	var cacheBaseClient BaseClient
+
+	cbc := reflect.ValueOf(*c).Interface().(BaseClient)
+	cacheBaseClient := &cbc
+
+	query := cacheBaseClient.NewQuery(queryContent, queryVariables)
 
 	// Check for library specific headers
 	if len(queryHeaders) > 0 {
-		cacheBaseClient = reflect.ValueOf(*c).Interface().(BaseClient)
-		queryHeaders = c.parseQueryHeaders(queryHeaders)
-		defer func() {
-			*c = cacheBaseClient
-		}()
-	}
+		queryHeadersModified := c.parseQueryHeaders(queryHeaders)
+		// compare if there are any changes
 
-	if c.cache.enabled {
-		queryHash = strutil.Md5(fmt.Sprintf("%s-%+v", query.compiledQuery, queryHeaders))
-		c.Logger.Debug(c, "Hash calculated;", "hash:", queryHash)
-
-		cachedResponse = c.cacheLookup(queryHash)
-		if cachedResponse != nil {
-			c.Logger.Debug(c, "Found cached response")
-			return c.decodeResponse(cachedResponse), nil
-		} else {
-			c.Logger.Debug(c, "No cached response found")
+		if !reflect.DeepEqual(queryHeadersModified, queryHeaders) {
+			cacheBaseClient.Logger.Debug(cacheBaseClient, "Headers modified, creating a new client")
 		}
 	}
 
-	response, err := c.executeQuery(query.compiledQuery, queryHeaders)
+	if cacheBaseClient.cache.enabled {
+		queryHash = strutil.Md5(fmt.Sprintf("%s-%+v", query.compiledQuery, queryHeaders))
+		cacheBaseClient.Logger.Debug(cacheBaseClient, "Hash calculated;", "hash:", queryHash)
+
+		cachedResponse = cacheBaseClient.cacheLookup(queryHash)
+		if cachedResponse != nil {
+			cacheBaseClient.Logger.Debug(cacheBaseClient, "Found cached response")
+			return cacheBaseClient.decodeResponse(cachedResponse), nil
+		} else {
+			cacheBaseClient.Logger.Debug(cacheBaseClient, "No cached response found")
+		}
+	}
+
+	response, err := cacheBaseClient.executeQuery(query.compiledQuery, queryHeaders)
 	if err != nil {
-		c.Logger.Error(c, "Error while executing query;", "error", err.Error())
+		cacheBaseClient.Logger.Error(cacheBaseClient, "Error while executing query;", "error", err.Error())
 		return nil, err
 	}
 
 	jsonData, err := json.Marshal(response)
 	if err != nil {
-		c.Logger.Error(c, "Error while converting to json;", "error", err.Error())
+		cacheBaseClient.Logger.Error(cacheBaseClient, "Error while converting to json;", "error", err.Error())
 		return nil, err
 	}
 
-	if c.cache.enabled {
-		c.cache.client.Set(queryHash, jsonData)
+	if cacheBaseClient.cache.enabled {
+		cacheBaseClient.cache.client.Set(queryHash, jsonData)
 	}
 
-	return c.decodeResponse(jsonData), err
+	return cacheBaseClient.decodeResponse(jsonData), err
 }
 
 func (c *BaseClient) decodeResponse(jsonData []byte) any {
