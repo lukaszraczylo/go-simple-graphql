@@ -74,6 +74,9 @@ func (c *BaseClient) Query(queryContent string, queryVariables interface{}, quer
 	var cachedResponse []byte
 
 	cacheBaseClient := c
+	defer func() {
+		cacheBaseClient = nil
+	}()
 
 	query := cacheBaseClient.NewQuery(queryContent, queryVariables)
 
