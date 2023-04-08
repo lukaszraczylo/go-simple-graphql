@@ -115,6 +115,10 @@ func (c *BaseClient) Query(queryContent string, queryVariables interface{}, quer
 
 	if cacheBaseClient.cache.enabled && jsonData != nil && queryHash != "" {
 		c.cache.client.Set(queryHash, jsonData)
+	} else if jsonData == nil {
+		cacheBaseClient.Logger.Warn(cacheBaseClient, "Response is empty")
+	} else if queryHash == "" {
+		cacheBaseClient.Logger.Warn(cacheBaseClient, "Query hash is empty")
 	}
 
 	return cacheBaseClient.decodeResponse(jsonData), err
