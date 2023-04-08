@@ -4,6 +4,7 @@ import (
 	"crypto/tls"
 	"time"
 
+	"github.com/allegro/bigcache"
 	"github.com/lukaszraczylo/go-simple-graphql/utils/concurrency"
 	"github.com/lukaszraczylo/go-simple-graphql/utils/logger"
 
@@ -14,7 +15,6 @@ import (
 	"os"
 	"strings"
 
-	"github.com/allegro/bigcache"
 	"github.com/gookit/goutil/envutil"
 )
 
@@ -43,11 +43,7 @@ func NewConnection() *BaseClient {
 	b.retries.delay = envutil.GetInt("GRAPHQL_RETRIES_DELAY", 300)
 
 	if b.cache.enabled {
-		var err error
-		b.cache.client, err = bigcache.NewBigCache(bigcache.DefaultConfig(time.Duration(b.cache.ttl) * time.Second))
-		if err != nil {
-			b.Logger.Error(b, "Error while creating cache client;", "error", err.Error())
-		}
+		b.enableCache()
 	}
 
 	b_tmp_log_level := envutil.Getenv("LOG_LEVEL", "info")
@@ -101,4 +97,12 @@ func (b *BaseClient) SetEndpoint(endpoint string) {
 
 func (b *BaseClient) SetOutput(output string) {
 	b.responseType = output
+}
+
+func (b *BaseClient) enableCache() {
+	var err error
+	b.cache.client, err = bigcache.NewBigCache(bigcache.DefaultConfig(time.Duration(b.cache.ttl) * time.Second))
+	if err != nil {
+		b.Logger.Error(b, "Error while creating cache client;", "error", err.Error())
+	}
 }

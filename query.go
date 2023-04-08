@@ -80,11 +80,14 @@ func (c *BaseClient) Query(queryContent string, queryVariables interface{}, quer
 
 	// Check for library specific headers
 	if len(queryHeaders) > 0 {
-		queryHeadersModified := c.parseQueryHeaders(queryHeaders)
+		queryHeadersModified := cacheBaseClient.parseQueryHeaders(queryHeaders)
 		// compare if there are any changes
 
 		if !reflect.DeepEqual(queryHeadersModified, queryHeaders) {
-			cacheBaseClient.Logger.Debug(cacheBaseClient, "Headers modified, creating a new client")
+			if cacheBaseClient.cache.enabled != c.cache.enabled && cacheBaseClient.cache.enabled {
+				cacheBaseClient.Logger.Debug(cacheBaseClient, "Switching cache on as per single-request header")
+				cacheBaseClient.enableCache()
+			}
 		}
 	}
 
