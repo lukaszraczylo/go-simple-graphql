@@ -34,7 +34,7 @@ Therefore, I present you the simple client to which you can copy & paste your gr
 * `GRAPHQL_ENDPOINT` - Your GraphQL endpoint. Default: `http://127.0.0.1:9090/v1/graphql`
 * `GRAPHQL_CACHE_ENABLED` -  Should the query cache be enabled? Default: `false`
 * `GRAPHQL_CACHE_TTL` -  Cache TTL in seconds for SELECT type of queries. Default: `5`
-* `GRAPHQL_OUTPUT` - Output format. Default: `byte`, available: `byte`, `string`
+* `GRAPHQL_OUTPUT` - Output format. Default: `mapstring`, available: `byte`, `string`, `mapstring`
 * `LOG_LEVEL` - Logging level. Default: `info` available: `debug`, `info`, `warn`, `error`
 * `GRAPHQL_RETRIES_ENABLE` - Should retries be enabled? Default: `true`
 * `GRAPHQL_RETRIES_NUMBER` - Number of retries: Default: `1`

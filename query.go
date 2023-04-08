@@ -120,6 +120,14 @@ func (c *BaseClient) Query(queryContent string, queryVariables interface{}, quer
 
 func (c *BaseClient) decodeResponse(jsonData []byte) any {
 	switch c.responseType {
+	case "mapstring":
+		var response map[string]interface{}
+		err := json.Unmarshal(jsonData, &response)
+		if err != nil {
+			c.Logger.Error(c, "Error while converting to map[string]interface{};", "error", err.Error())
+			return nil
+		}
+		return response
 	case "string":
 		return helpers.BytesToString(jsonData)
 	case "byte":
