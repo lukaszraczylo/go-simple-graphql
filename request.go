@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"time"
 
 	"github.com/avast/retry-go/v4"
 )
@@ -50,6 +51,13 @@ func (c *BaseClient) executeQuery(query []byte, headers any) (result any, err er
 
 			return nil
 		},
+		retry.OnRetry(func(n uint, err error) {
+			c.Logger.Error(c, "Retrying query", "error", err.Error())
+		}),
+		retry.Attempts(uint(c.retries.max)),
+		retry.DelayType(retry.BackOffDelay),
+		retry.Delay(time.Duration(c.retries.delay)*time.Second),
+		retry.LastErrorOnly(true),
 	)
 
 	if len(queryResult.Errors) > 0 {
