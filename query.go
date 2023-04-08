@@ -92,7 +92,7 @@ func (c *BaseClient) Query(queryContent string, queryVariables interface{}, quer
 		queryHash = strutil.Md5(fmt.Sprintf("%s-%+v", query.compiledQuery, queryHeaders))
 		cacheBaseClient.Logger.Debug(cacheBaseClient, "Hash calculated;", "hash:", queryHash)
 
-		cachedResponse = cacheBaseClient.cacheLookup(queryHash)
+		cachedResponse = c.cacheLookup(queryHash)
 		if cachedResponse != nil {
 			cacheBaseClient.Logger.Debug(cacheBaseClient, "Found cached response")
 			return cacheBaseClient.decodeResponse(cachedResponse), nil
@@ -113,8 +113,8 @@ func (c *BaseClient) Query(queryContent string, queryVariables interface{}, quer
 		return nil, err
 	}
 
-	if cacheBaseClient.cache.enabled {
-		cacheBaseClient.cache.client.Set(queryHash, jsonData)
+	if cacheBaseClient.cache.enabled && jsonData != nil && queryHash != "" {
+		c.cache.client.Set(queryHash, jsonData)
 	}
 
 	return cacheBaseClient.decodeResponse(jsonData), err
