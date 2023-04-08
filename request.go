@@ -3,6 +3,7 @@ package gql
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net/http"
 	"time"
@@ -31,6 +32,7 @@ func (c *BaseClient) executeQuery(query []byte, headers any) (result any, err er
 				c.Logger.Error(c, "Error while executing http request;", "error", err.Error())
 				return err
 			}
+			defer io.Copy(io.Discard, httpResponse.Body) // equivalent to `cp body /dev/null`
 			defer httpResponse.Body.Close()
 
 			if httpResponse.StatusCode <= 200 && httpResponse.StatusCode >= 204 {
@@ -64,4 +66,43 @@ func (c *BaseClient) executeQuery(query []byte, headers any) (result any, err er
 		return nil, fmt.Errorf("%v", queryResult.Errors)
 	}
 	return queryResult.Data, nil
+}
+
+func (q *queryExecutor) execute() {
+	if q.should_cache {
+		cachedResponse := q.client.cacheLookup(q.hash)
+		if cachedResponse != nil {
+			q.client.Logger.Debug(q.client, "Found cached response")
+			q.result.data = q.client.decodeResponse(cachedResponse)
+		} else {
+			q.client.Logger.Debug(q.client, "No cached response found")
+		}
+	}
+
+	response, err := q.client.executeQuery(q.query, q.headers)
+	if err != nil {
+		q.client.Logger.Error(q.client, "Error while executing query;", "error", err.Error())
+		q.result.errors = err
+		return
+	}
+
+	jsonData, err := json.Marshal(response)
+	if err != nil {
+		q.client.Logger.Error(q.client, "Error while converting to json;", "error", err.Error())
+		q.result.errors = err
+		return
+	}
+
+	if q.should_cache {
+		err = q.client.cache.client.Set(q.hash, jsonData)
+		if err != nil {
+			q.client.Logger.Error(q.client, "Error while setting cache key;", "error", err.Error())
+		}
+	}
+
+	q.result.data = q.client.decodeResponse(jsonData)
+}
+
+func (q *queryExecutor) done() {
+	q = nil
 }

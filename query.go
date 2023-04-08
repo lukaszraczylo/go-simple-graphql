@@ -5,9 +5,8 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/lukaszraczylo/go-simple-graphql/utils/helpers"
-
 	"github.com/gookit/goutil/strutil"
+	"github.com/lukaszraczylo/go-simple-graphql/utils/helpers"
 
 	jsoniter "github.com/json-iterator/go"
 )
@@ -69,68 +68,36 @@ func (c *BaseClient) NewQuery(q ...any) *Query {
 // It looks a bit weird because of the backward compatibility
 
 func (c *BaseClient) Query(queryContent string, queryVariables interface{}, queryHeaders map[string]interface{}) (any, error) {
+
+	compiledQuery := c.NewQuery(queryContent, queryVariables)
+	parseQueryHeaders, enabledCache, headersModified := c.parseQueryHeaders(queryHeaders)
+
+	var should_cache bool
 	var queryHash string
-	var cachedResponse []byte
 
-	query := c.NewQuery(queryContent, queryVariables)
-
-	localClientlocal := *c
-	localClient := &localClientlocal
-
-	// Check for library specific headers
-	if len(queryHeaders) > 0 {
-		queryHeadersModified, cache_enabled, headers_modified := c.parseQueryHeaders(queryHeaders)
-
-		if headers_modified {
-			queryHeaders = queryHeadersModified
-			c.Logger.Debug(c, fmt.Sprintf("Switching cache %s as per single-request header", strconv.FormatBool(cache_enabled)))
-			if cache_enabled {
-
-				// this doesn't make sense - cache is created but its ttl is longer than query execution so it'll be disappeared before it's used
-				localClient.enableCache()
-			} else {
-				localClient.disableCache()
-			}
-		}
+	if headersModified {
+		should_cache = enabledCache
+	} else {
+		should_cache = c.cache.enabled
 	}
 
-	if localClient.cache.enabled {
-		queryHash = strutil.Md5(fmt.Sprintf("%s-%+v", query.compiledQuery, queryHeaders))
-		c.Logger.Debug(c, "Hash calculated;", "hash:", queryHash)
-
-		cachedResponse = c.cacheLookup(queryHash)
-		if cachedResponse != nil {
-			c.Logger.Debug(c, "Found cached response")
-			return c.decodeResponse(cachedResponse), nil
-		} else {
-			c.Logger.Debug(c, "No cached response found")
-		}
+	if should_cache {
+		queryHash = strutil.Md5(fmt.Sprintf("%s-%+v", compiledQuery.compiledQuery, queryHeaders))
 	}
 
-	response, err := localClient.executeQuery(query.compiledQuery, queryHeaders)
-	if err != nil {
-		c.Logger.Error(c, "Error while executing query;", "error", err.Error())
-		return nil, err
+	q := &queryExecutor{
+		client:       c,
+		query:        compiledQuery.compiledQuery,
+		headers:      parseQueryHeaders,
+		context:      context.Background(),
+		should_cache: should_cache,
+		hash:         queryHash,
 	}
 
-	jsonData, err := json.Marshal(response)
-	if err != nil {
-		c.Logger.Error(c, "Error while converting to json;", "error", err.Error())
-		return nil, err
-	}
+	q.execute()
+	defer q.done()
 
-	if localClient.cache.enabled && c.cache.client != nil && jsonData != nil && queryHash != "" {
-		err = c.cache.client.Set(queryHash, jsonData)
-		if err != nil {
-			c.Logger.Error(c, "Error while setting cache key;", "error", err.Error())
-		}
-	} else if localClient.cache.enabled && c.cache.enabled && jsonData == nil {
-		c.Logger.Warn(c, "Response is empty")
-	} else if localClient.cache.enabled && c.cache.enabled && queryHash == "" {
-		c.Logger.Warn(c, "Query hash is empty")
-	}
-
-	return c.decodeResponse(jsonData), err
+	return q.result.data, q.result.errors
 }
 
 func (c *BaseClient) decodeResponse(jsonData []byte) any {
@@ -155,6 +122,7 @@ func (c *BaseClient) decodeResponse(jsonData []byte) any {
 
 func (c *BaseClient) parseQueryHeaders(queryHeaders map[string]interface{}) (returnHeaders map[string]interface{}, cache_enabled bool, headers_modified bool) {
 	returnHeaders = make(map[string]interface{})
+
 	for k, v := range queryHeaders {
 		if k == "gqlcache" {
 			cache_enabled, _ = strconv.ParseBool(fmt.Sprintf("%v", v))

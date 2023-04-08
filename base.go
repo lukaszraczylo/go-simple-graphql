@@ -43,9 +43,7 @@ func NewConnection() *BaseClient {
 	b.retries.max = envutil.GetInt("GRAPHQL_RETRIES_MAX", 1)
 	b.retries.delay = envutil.GetInt("GRAPHQL_RETRIES_DELAY", 300)
 
-	if b.cache.enabled {
-		b.enableCache()
-	}
+	b.enableCache()
 
 	b_tmp_log_level := envutil.Getenv("LOG_LEVEL", "info")
 
@@ -68,9 +66,20 @@ func NewConnection() *BaseClient {
 	})
 
 	var httpClient *http.Client
+
+	httpTransport := &http.Transport{
+		MaxIdleConns:          10,
+		IdleConnTimeout:       15 * time.Second,
+		ResponseHeaderTimeout: 15 * time.Second,
+		DisableKeepAlives:     false,
+	}
+
 	if strings.HasPrefix(b.endpoint, "http://") {
 		httpClient = &http.Client{
-			Transport: http.DefaultTransport,
+			Transport: httpTransport,
+			CheckRedirect: func(req *http.Request, via []*http.Request) error {
+				return http.ErrUseLastResponse
+			},
 		}
 	} else {
 		tlsClientConfig := &tls.Config{}
@@ -80,6 +89,8 @@ func NewConnection() *BaseClient {
 		http2Transport := &http2.Transport{
 			AllowHTTP:       true,
 			TLSClientConfig: tlsClientConfig,
+			ReadIdleTimeout: 15 * time.Second,
+			PingTimeout:     15 * time.Second,
 		}
 		httpClient = &http.Client{
 			Transport: http2Transport,
@@ -102,7 +113,21 @@ func (b *BaseClient) SetOutput(output string) {
 
 func (b *BaseClient) enableCache() {
 	var err error
-	b.cache.client, err = bigcache.NewBigCache(bigcache.DefaultConfig(time.Duration(b.cache.ttl) * time.Second))
+	b.cache.client, err = bigcache.NewBigCache(
+		// bigcache.DefaultConfig(time.Duration(b.cache.ttl) * time.Second)
+		bigcache.Config{
+			Shards:      1024,
+			LifeWindow:  time.Duration(b.cache.ttl) * time.Second,
+			CleanWindow: time.Duration(b.cache.ttl) * 2 * time.Second,
+			OnRemove: func(key string, entry []byte) {
+				b.Logger.Debug(b, "Removing cache entry;", "key", key)
+			},
+			MaxEntriesInWindow: 1000 * 10 * 60,
+			MaxEntrySize:       500,
+			Verbose:            true,
+			HardMaxCacheSize:   8192,
+		},
+	)
 	if err != nil {
 		fmt.Println(">> Error while creating cache client;", "error", err.Error())
 		panic(err)
@@ -112,5 +137,4 @@ func (b *BaseClient) enableCache() {
 func (b *BaseClient) disableCache() {
 	b.Logger.Debug(b, "Disabling cache")
 	b.cache.enabled = false
-	b.cache.client = nil
 }

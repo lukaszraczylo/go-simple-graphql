@@ -298,10 +298,10 @@ func TestBaseClient_parseQueryHeaders(t *testing.T) {
 		queryHeaders map[string]interface{}
 	}
 	tests := []struct {
-		name              string
 		fields            fields
 		args              args
 		wantReturnHeaders map[string]interface{}
+		name              string
 	}{
 		{
 			name:   "Test parseQueryHeaders - no change",

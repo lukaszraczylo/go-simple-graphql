@@ -44,6 +44,21 @@ type Query struct {
 	compiledQuery []byte         `json:"compiledQuery"`
 }
 
+type queryExecutor struct {
+	result       queryExecutorResult
+	context      context.Context
+	client       *BaseClient
+	headers      map[string]interface{}
+	hash         string
+	query        []byte
+	should_cache bool
+}
+
+type queryExecutorResult struct {
+	data   interface{}
+	errors error
+}
+
 type request struct {
 	Variables any    `json:"variables"`
 	Query     string `json:"query"`
