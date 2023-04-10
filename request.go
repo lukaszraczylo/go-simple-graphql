@@ -23,6 +23,11 @@ func (c *BaseClient) executeQuery(query []byte, headers any) (result any, err er
 		httpRequest.Header.Add(key, fmt.Sprintf("%s", value))
 	}
 
+	var retries_available = c.retries.max
+	if !c.retries.enabled {
+		retries_available = 1
+	}
+
 	var httpResponse *http.Response
 
 	err = retry.Do(
@@ -56,7 +61,7 @@ func (c *BaseClient) executeQuery(query []byte, headers any) (result any, err er
 		retry.OnRetry(func(n uint, err error) {
 			c.Logger.Error(c, "Retrying query", "error", err.Error())
 		}),
-		retry.Attempts(uint(c.retries.max)),
+		retry.Attempts(uint(retries_available)),
 		retry.DelayType(retry.BackOffDelay),
 		retry.Delay(time.Duration(c.retries.delay)*time.Second),
 		retry.LastErrorOnly(true),
@@ -78,6 +83,11 @@ func (q *queryExecutor) execute() {
 		} else {
 			q.client.Logger.Debug(q.client, "No cached response found")
 		}
+	}
+
+	if q.retries_enabled {
+		q.client.Logger.Debug(q.client, "Retries enabled")
+		q.client.retries.enabled = true
 	}
 
 	response, err := q.client.executeQuery(q.query, q.headers)

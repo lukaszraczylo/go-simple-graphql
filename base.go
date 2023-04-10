@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/akyoto/cache"
-	"github.com/lukaszraczylo/go-simple-graphql/utils/concurrency"
 	"github.com/lukaszraczylo/go-simple-graphql/utils/logger"
 
 	"golang.org/x/net/http2"
@@ -22,11 +21,10 @@ import (
 func NewConnection() *BaseClient {
 
 	b := &BaseClient{
-		client:             &http.Client{},
-		concurrencyManager: concurrency.NewPool(-1),
-		MaxGoRoutines:      -1,
-		LoggingLevel:       logger.Warn,
-		LoggerColorful:     true,
+		client:         &http.Client{},
+		MaxGoRoutines:  -1,
+		LoggingLevel:   logger.Warn,
+		LoggerColorful: true,
 	}
 
 	if b.LoggerWriter == nil {

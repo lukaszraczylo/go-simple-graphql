@@ -134,6 +134,20 @@ func TestBaseClient_decodeResponse(t *testing.T) {
 			},
 			want: []byte(`{"data":{"hello":"world"}}`),
 		},
+		{
+			name: "Test decodeResponse - mapstring",
+			fields: fields{
+				responseType: "mapstring",
+			},
+			args: args{
+				jsonData: []byte(`{"data":{"hello":"world"}}`),
+			},
+			want: map[string]interface{}{
+				"data": map[string]interface{}{
+					"hello": "world",
+				},
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -333,8 +347,8 @@ func TestBaseClient_parseQueryHeaders(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			c := NewConnection()
-			if gotReturnHeaders, _, _ := c.parseQueryHeaders(tt.args.queryHeaders); !reflect.DeepEqual(gotReturnHeaders, tt.wantReturnHeaders) {
+			q := &Query{}
+			if gotReturnHeaders, _, _, _ := q.parseQueryHeaders(tt.args.queryHeaders); !reflect.DeepEqual(gotReturnHeaders, tt.wantReturnHeaders) {
 				t.Errorf("BaseClient.parseQueryHeaders() = %v, want %v", gotReturnHeaders, tt.wantReturnHeaders)
 			}
 		})

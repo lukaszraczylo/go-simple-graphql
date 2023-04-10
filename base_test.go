@@ -10,14 +10,30 @@ import (
 
 func TestNewConnection(t *testing.T) {
 	tests := []struct {
-		want *BaseClient
-		name string
+		want     *BaseClient
+		cache    bool
+		endpoint string
+		output   string
+		name     string
 	}{
 		{
-			name: "Test NewConnection",
+			name:     "Test NewConnection https",
+			endpoint: "https://api.github.com/graphql",
+			output:   "string",
+			cache:    true,
 			want: &BaseClient{
 				endpoint:     "https://api.github.com/graphql",
 				responseType: "string",
+			},
+		},
+		{
+			name:     "Test NewConnection http",
+			endpoint: "http://api.github.com/graphql",
+			output:   "mapstring",
+			cache:    false,
+			want: &BaseClient{
+				endpoint:     "http://api.github.com/graphql",
+				responseType: "mapstring",
 			},
 		},
 	}
@@ -27,11 +43,19 @@ func TestNewConnection(t *testing.T) {
 			// and GRAPHQL_OUTPUT to string
 			current := os.Getenv("GRAPHQL_ENDPOINT")
 			defer os.Setenv("GRAPHQL_ENDPOINT", current)
-			os.Setenv("GRAPHQL_ENDPOINT", "https://api.github.com/graphql")
-
+			os.Setenv("GRAPHQL_ENDPOINT", tt.endpoint)
 			got := NewConnection()
+			got.SetEndpoint(tt.endpoint)
+			got.SetOutput(tt.output)
+			if tt.cache {
+				got.enableCache()
+			} else {
+				got.disableCache()
+			}
+
 			assert.Equal(t, tt.want.endpoint, got.endpoint)
 			assert.Equal(t, tt.want.responseType, got.responseType)
+			assert.Equal(t, tt.cache, got.cache.enabled)
 		})
 	}
 }

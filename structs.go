@@ -5,7 +5,6 @@ import (
 	"net/http"
 
 	"github.com/akyoto/cache"
-	"github.com/lukaszraczylo/go-simple-graphql/utils/concurrency"
 	"github.com/lukaszraczylo/go-simple-graphql/utils/logger"
 )
 
@@ -22,18 +21,17 @@ type retriesConfig struct {
 }
 
 type BaseClient struct {
-	Logger             Logger
-	LoggerWriter       Writer
-	client             *http.Client
-	concurrencyManager *concurrency.Pool
-	endpoint           string
-	responseType       string
-	cache              cacheStore
-	MaxGoRoutines      int
-	LoggingLevel       logger.LogLevel
-	LoggerColorful     bool
-	validate           bool
-	retries            retriesConfig
+	Logger         Logger
+	LoggerWriter   Writer
+	client         *http.Client
+	endpoint       string
+	responseType   string
+	cache          cacheStore
+	MaxGoRoutines  int
+	LoggingLevel   logger.LogLevel
+	LoggerColorful bool
+	validate       bool
+	retries        retriesConfig
 }
 
 type Query struct {
@@ -44,13 +42,14 @@ type Query struct {
 }
 
 type queryExecutor struct {
-	result       queryExecutorResult
-	context      context.Context
-	client       *BaseClient
-	headers      map[string]interface{}
-	hash         string
-	query        []byte
-	should_cache bool
+	result          queryExecutorResult
+	context         context.Context
+	client          *BaseClient
+	headers         map[string]interface{}
+	hash            string
+	query           []byte
+	should_cache    bool
+	retries_enabled bool
 }
 
 type queryExecutorResult struct {

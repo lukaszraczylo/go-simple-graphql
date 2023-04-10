@@ -70,15 +70,17 @@ func (c *BaseClient) NewQuery(q ...any) *Query {
 func (c *BaseClient) Query(queryContent string, queryVariables interface{}, queryHeaders map[string]interface{}) (any, error) {
 
 	compiledQuery := c.NewQuery(queryContent, queryVariables)
-	parseQueryHeaders, enabledCache, headersModified := c.parseQueryHeaders(queryHeaders)
+	parseQueryHeaders, enabledCache, headersModified, enabledRetries := compiledQuery.parseQueryHeaders(queryHeaders)
 
-	var should_cache bool
+	var should_cache, retries_enabled bool
 	var queryHash string
 
 	if headersModified {
 		should_cache = enabledCache
+		retries_enabled = enabledRetries
 	} else {
 		should_cache = c.cache.enabled
+		retries_enabled = c.retries.enabled
 	}
 
 	// if queryContent does not start with `query` then we don't want to cache it
@@ -92,12 +94,13 @@ func (c *BaseClient) Query(queryContent string, queryVariables interface{}, quer
 	}
 
 	q := &queryExecutor{
-		client:       c,
-		query:        compiledQuery.compiledQuery,
-		headers:      parseQueryHeaders,
-		context:      context.Background(),
-		should_cache: should_cache,
-		hash:         queryHash,
+		client:          c,
+		query:           compiledQuery.compiledQuery,
+		headers:         parseQueryHeaders,
+		context:         context.Background(),
+		should_cache:    should_cache,
+		retries_enabled: retries_enabled,
+		hash:            queryHash,
 	}
 
 	q.execute()
@@ -126,7 +129,7 @@ func (c *BaseClient) decodeResponse(jsonData []byte) any {
 	}
 }
 
-func (c *BaseClient) parseQueryHeaders(queryHeaders map[string]interface{}) (returnHeaders map[string]interface{}, cache_enabled bool, headers_modified bool) {
+func (q *Query) parseQueryHeaders(queryHeaders map[string]interface{}) (returnHeaders map[string]interface{}, cache_enabled bool, headers_modified bool, retries_enabled bool) {
 	returnHeaders = make(map[string]interface{})
 	var err error
 
@@ -134,18 +137,16 @@ func (c *BaseClient) parseQueryHeaders(queryHeaders map[string]interface{}) (ret
 		if k == "gqlcache" {
 			cache_enabled, err = strconv.ParseBool(fmt.Sprintf("%v", v))
 			if err != nil {
-				c.Logger.Error(c, "Can't parse gqlcache header", "error", err.Error())
+				panic(fmt.Sprintf("Unable to parse gqlcache value %s", err.Error()))
 			}
-			if cache_enabled != c.cache.enabled {
-				headers_modified = true
-			}
+			headers_modified = true
 			continue
 		}
 		if k == "gqlretries" {
-			c.retries.enabled, _ = strconv.ParseBool(fmt.Sprintf("%v", v))
+			retries_enabled, _ = strconv.ParseBool(fmt.Sprintf("%v", v))
 			continue
 		}
 		returnHeaders[k] = v
 	}
-	return returnHeaders, cache_enabled, headers_modified
+	return returnHeaders, cache_enabled, headers_modified, retries_enabled
 }
