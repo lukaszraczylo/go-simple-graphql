@@ -81,6 +81,12 @@ func (c *BaseClient) Query(queryContent string, queryVariables interface{}, quer
 		should_cache = c.cache.enabled
 	}
 
+	// if queryContent does not start with `query` then we don't want to cache it
+	// because it's probably a mutation or subscription.
+	if !strutil.HasPrefix(queryContent, "query") {
+		should_cache = false
+	}
+
 	if should_cache {
 		queryHash = strutil.Md5(fmt.Sprintf("%s-%+v", compiledQuery.compiledQuery, queryHeaders))
 	}
