@@ -41,6 +41,17 @@ func TestBaseClient_convertToJson(t *testing.T) {
 			},
 			want: []byte(`{"query":"query { hello }","variables":{"name":"John"}}`),
 		},
+		{
+			name:   "Test NewQuery with modifier",
+			fields: fields{},
+			args: args{
+				v: map[string]interface{}{
+					"query":     "query @cached(ttl: 120) { hello }",
+					"variables": map[string]interface{}{"name": "John"},
+				},
+			},
+			want: []byte(`{"query":"query @cached(ttl: 120) { hello }","variables":{"name":"John"}}`),
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -87,6 +98,19 @@ func TestBaseClient_NewQuery(t *testing.T) {
 			},
 			want: &Query{
 				compiledQuery: []byte(`{"variables":{"name":"John"},"query":"query { hello }"}`),
+			},
+		},
+		{
+			name:   "Test NewQuery with modifier",
+			fields: fields{},
+			args: args{
+				q: []any{
+					"query @cached(ttl: 120) { hello }",
+					map[string]interface{}{"name": "John"},
+				},
+			},
+			want: &Query{
+				compiledQuery: []byte(`{"variables":{"name":"John"},"query":"query @cached(ttl: 120) { hello }"}`),
 			},
 		},
 	}

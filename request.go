@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"time"
 
@@ -44,7 +43,7 @@ func (c *BaseClient) executeQuery(query []byte, headers any) (result any, err er
 				return err
 			}
 
-			body, err := ioutil.ReadAll(httpResponse.Body)
+			body, err := io.ReadAll(httpResponse.Body)
 			if err != nil {
 				c.Logger.Error(c, "Error while reading http response;", "error", err.Error())
 				return err
