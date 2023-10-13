@@ -2,8 +2,6 @@ module github.com/lukaszraczylo/go-simple-graphql
 
 go 1.21
 
-toolchain go1.21.3
-
 require (
 	github.com/avast/retry-go/v4 v4.5.0
 	github.com/gookit/goutil v0.6.13
