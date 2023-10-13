@@ -4,12 +4,12 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/akyoto/cache"
 	"github.com/lukaszraczylo/go-simple-graphql/utils/logger"
+	libpack_cache "github.com/lukaszraczylo/graphql-monitoring-proxy/cache"
 )
 
 type cacheStore struct {
-	client  *cache.Cache
+	client  *libpack_cache.Cache
 	ttl     int
 	enabled bool
 }

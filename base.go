@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/akyoto/cache"
 	"github.com/lukaszraczylo/go-simple-graphql/utils/logger"
+	libpack_cache "github.com/lukaszraczylo/graphql-monitoring-proxy/cache"
 
 	"golang.org/x/net/http2"
 
@@ -111,7 +111,7 @@ func (b *BaseClient) SetOutput(output string) {
 
 func (b *BaseClient) enableCache() {
 	var err error
-	b.cache.client = cache.New(time.Duration(b.cache.ttl) * time.Second * 2)
+	b.cache.client = libpack_cache.New(time.Duration(b.cache.ttl) * time.Second * 2)
 	if err != nil {
 		fmt.Println(">> Error while creating cache client;", "error", err.Error())
 		panic(err)
