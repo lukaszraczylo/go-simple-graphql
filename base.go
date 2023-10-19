@@ -5,14 +5,12 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/lukaszraczylo/go-simple-graphql/utils/logger"
 	libpack_cache "github.com/lukaszraczylo/graphql-monitoring-proxy/cache"
+	libpack_logging "github.com/lukaszraczylo/graphql-monitoring-proxy/logging"
 
 	"golang.org/x/net/http2"
 
-	"log"
 	"net/http"
-	"os"
 	"strings"
 
 	"github.com/gookit/goutil/envutil"
@@ -21,14 +19,8 @@ import (
 func NewConnection() *BaseClient {
 
 	b := &BaseClient{
-		client:         &http.Client{},
-		MaxGoRoutines:  -1,
-		LoggingLevel:   logger.Warn,
-		LoggerColorful: true,
-	}
-
-	if b.LoggerWriter == nil {
-		b.LoggerWriter = log.New(os.Stdout, "", log.LstdFlags)
+		client:        &http.Client{},
+		MaxGoRoutines: -1,
 	}
 
 	b.endpoint = envutil.Getenv("GRAPHQL_ENDPOINT", "https://api.github.com/graphql")
@@ -45,23 +37,7 @@ func NewConnection() *BaseClient {
 
 	b_tmp_log_level := envutil.Getenv("LOG_LEVEL", "info")
 
-	switch b_tmp_log_level {
-	case "silent":
-		b.LoggingLevel = logger.Silent
-	case "error":
-		b.LoggingLevel = logger.Error
-	case "warn":
-		b.LoggingLevel = logger.Warn
-	case "info":
-		b.LoggingLevel = logger.Info
-	case "debug":
-		b.LoggingLevel = logger.Debug
-	}
-
-	b.Logger = NewLogger(b.LoggerWriter, logger.Config{
-		Colorful: b.LoggerColorful,
-		LogLevel: b.LoggingLevel,
-	})
+	b.Logger = libpack_logging.NewLogger()
 
 	var httpClient *http.Client
 
@@ -96,8 +72,8 @@ func NewConnection() *BaseClient {
 	}
 	b.client = httpClient
 
-	b.Logger.Debug(b, "graphQL client initialized;", "endpoint", b.endpoint, "responseType", b.responseType, "validate", b.validate, "cache", b.cache.enabled, "cacheTTL", b.cache.ttl, "maxGoRoutines", b.MaxGoRoutines, "loggingLevel", b_tmp_log_level, "loggerColorful", b.LoggerColorful)
-	b.Logger.Info(b, "graphQL client initialized;")
+	b.Logger.Debug("GraphQL client initialized", map[string]interface{}{"endpoint": b.endpoint, "responseType": b.responseType, "validate": b.validate, "cache": b.cache.enabled, "cacheTTL": b.cache.ttl, "maxGoRoutines": b.MaxGoRoutines, "loggingLevel": b_tmp_log_level})
+	b.Logger.Info("GraphQL client initialized")
 	return b
 }
 
@@ -119,6 +95,6 @@ func (b *BaseClient) enableCache() {
 }
 
 func (b *BaseClient) disableCache() {
-	b.Logger.Debug(b, "Disabling cache")
+	b.Logger.Debug("Disabling cache")
 	b.cache.enabled = false
 }

@@ -16,7 +16,7 @@ var json = jsoniter.ConfigCompatibleWithStandardLibrary
 func (c *BaseClient) convertToJson(v any) []byte {
 	json, err := json.Marshal(v)
 	if err != nil {
-		c.Logger.Error(c, "Can't convert to json;", "error", err.Error())
+		c.Logger.Error("Can't convert to json;", map[string]interface{}{"error": err.Error()})
 		return nil
 	}
 	return json
@@ -43,7 +43,7 @@ func (c *BaseClient) NewQuery(q ...any) *Query {
 		Variables: query.variables,
 	})
 
-	c.Logger.Debug(c, "Clearing previously prepared variables and query")
+	c.Logger.Debug("Clearing previously prepared variables and query")
 	query.variables = nil
 
 	if query.context == nil {
@@ -51,11 +51,11 @@ func (c *BaseClient) NewQuery(q ...any) *Query {
 	}
 
 	if c.validate {
-		c.Logger.Warn(c, "Validating query is not active")
+		c.Logger.Warning("Validating query is active")
 	}
 
 	query.query = ""
-	c.Logger.Debug(c, "Query prepared;", "query", helpers.BytesToString(query.compiledQuery))
+	c.Logger.Debug("Query prepared", map[string]interface{}{"query": query.compiledQuery})
 
 	return query
 }
@@ -115,7 +115,7 @@ func (c *BaseClient) decodeResponse(jsonData []byte) any {
 		var response map[string]interface{}
 		err := json.Unmarshal(jsonData, &response)
 		if err != nil {
-			c.Logger.Error(c, "Error while converting to map[string]interface{};", "error", err.Error())
+			c.Logger.Error("Error while converting to map[string]interface{};", map[string]interface{}{"error": err.Error()})
 			return nil
 		}
 		return response
@@ -124,7 +124,7 @@ func (c *BaseClient) decodeResponse(jsonData []byte) any {
 	case "byte":
 		return jsonData
 	default:
-		c.Logger.Error(c, "Unknown response type", "response", c.responseType)
+		c.Logger.Error("Unknown response type", map[string]interface{}{"response": c.responseType})
 		return nil
 	}
 }

@@ -4,8 +4,8 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/lukaszraczylo/go-simple-graphql/utils/logger"
 	libpack_cache "github.com/lukaszraczylo/graphql-monitoring-proxy/cache"
+	libpack_logging "github.com/lukaszraczylo/graphql-monitoring-proxy/logging"
 )
 
 type cacheStore struct {
@@ -21,17 +21,14 @@ type retriesConfig struct {
 }
 
 type BaseClient struct {
-	Logger         Logger
-	LoggerWriter   Writer
-	client         *http.Client
-	endpoint       string
-	responseType   string
-	cache          cacheStore
-	MaxGoRoutines  int
-	LoggingLevel   logger.LogLevel
-	LoggerColorful bool
-	validate       bool
-	retries        retriesConfig
+	Logger        *libpack_logging.LogConfig
+	client        *http.Client
+	endpoint      string
+	responseType  string
+	cache         cacheStore
+	MaxGoRoutines int
+	validate      bool
+	retries       retriesConfig
 }
 
 type Query struct {
