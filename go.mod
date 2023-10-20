@@ -6,7 +6,7 @@ require (
 	github.com/avast/retry-go/v4 v4.5.0
 	github.com/gookit/goutil v0.6.14
 	github.com/json-iterator/go v1.1.12
-	github.com/lukaszraczylo/graphql-monitoring-proxy v0.5.23
+	github.com/lukaszraczylo/graphql-monitoring-proxy v0.5.30
 	github.com/stretchr/testify v1.8.4
 	golang.org/x/net v0.17.0
 )
