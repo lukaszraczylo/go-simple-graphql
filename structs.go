@@ -15,20 +15,20 @@ type cacheStore struct {
 }
 
 type retriesConfig struct {
-	enabled bool
 	max     int
 	delay   int
+	enabled bool
 }
 
 type BaseClient struct {
-	Logger        *libpack_logging.LogConfig
-	client        *http.Client
+	retries       retriesConfig
+	cache         cacheStore
 	endpoint      string
 	responseType  string
-	cache         cacheStore
+	Logger        *libpack_logging.LogConfig
+	client        *http.Client
 	MaxGoRoutines int
 	validate      bool
-	retries       retriesConfig
 }
 
 type Query struct {
