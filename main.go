@@ -11,7 +11,7 @@ import (
 func NewConnection() (b *BaseClient) {
 	b = &BaseClient{
 		endpoint:       envutil.Getenv("GRAPHQL_ENDPOINT", "https://api.github.com/graphql"),
-		responseType:   envutil.Getenv("GRAPHQL_RESPONSE_TYPE", "string"),
+		responseType:   envutil.Getenv("GRAPHQL_OUTPUT", "string"),
 		Logger:         logging.NewLogger(),
 		cache:          cache.New(time.Duration(envutil.GetInt("GRAPHQL_CACHE_TTL", 5)) * time.Second),
 		cache_global:   envutil.GetBool("GRAPHQL_CACHE_ENABLED", false),
