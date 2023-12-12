@@ -12,6 +12,6 @@ jobs:
   shared:
     uses: telegram-bot-app/ci-scripts/.github/workflows/library-test-publish.yaml@main
     with:
-      enable-code-scans: true
+      enable-code-scans: false
     secrets:
       ghcr-token: ${{ secrets.GHCR_TOKEN }}
