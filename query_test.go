@@ -236,6 +236,20 @@ func (suite *Tests) TestBaseClient_Query() {
 			wantErr:            false,
 		},
 		{
+			name:          "TestBaseClient_Query_tgbotapp_valid_query_string",
+			graphQLServer: "https://telegram-bot.app/v1/graphql",
+			wantType:      "string",
+			args: args{
+				query: `query {
+					__type(name: "Query") {
+						name
+					}
+				}`,
+			},
+			wantReturned_value: string(`{"__type":null}`),
+			wantErr:            false,
+		},
+		{
 			name:          "TestBaseClient_Query_tgbotapp_valid_query_invalid_type",
 			graphQLServer: "https://telegram-bot.app/v1/graphql",
 			wantType:      "potato",
