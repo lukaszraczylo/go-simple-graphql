@@ -1,62 +1,41 @@
 package gql
 
 import (
-	"context"
 	"net/http"
+	"time"
 
-	libpack_cache "github.com/lukaszraczylo/graphql-monitoring-proxy/cache"
-	libpack_logging "github.com/lukaszraczylo/graphql-monitoring-proxy/logging"
+	cache "github.com/lukaszraczylo/go-simple-graphql/cache"
+	logging "github.com/lukaszraczylo/go-simple-graphql/logging"
 )
 
-type cacheStore struct {
-	client  *libpack_cache.Cache
-	ttl     int
-	enabled bool
-}
-
-type retriesConfig struct {
-	max     int
-	delay   int
-	enabled bool
-}
-
 type BaseClient struct {
-	retries       retriesConfig
-	cache         cacheStore
-	endpoint      string
-	responseType  string
-	Logger        *libpack_logging.LogConfig
-	client        *http.Client
-	MaxGoRoutines int
-	validate      bool
+	cache          *cache.Cache
+	Logger         *logging.LogConfig
+	client         *http.Client
+	endpoint       string
+	responseType   string
+	retries_delay  time.Duration
+	retries_number int
+	MaxGoRoutines  int
+	cache_global   bool
+	retries_enable bool
 }
 
 type Query struct {
-	context       context.Context
-	variables     map[string]any `json:"variables"`
-	query         string         `json:"query"`
-	compiledQuery []byte         `json:"compiledQuery"`
+	Variables map[string]interface{} `json:"variables,omitempty"`
+	Query     string                 `json:"query,omitempty"`
+	JsonQuery []byte                 `json:"jsonQuery,omitempty"`
 }
 
-type queryExecutor struct {
-	result          queryExecutorResult
-	context         context.Context
-	client          *BaseClient
-	headers         map[string]interface{}
-	hash            string
-	query           []byte
-	should_cache    bool
-	retries_enabled bool
-}
-
-type queryExecutorResult struct {
-	data   interface{}
-	errors error
-}
-
-type request struct {
-	Variables any    `json:"variables"`
-	Query     string `json:"query"`
+type QueryExecutor struct {
+	Result any
+	Error  error
+	*BaseClient
+	Headers  map[string]interface{}
+	CacheKey string
+	Query    []byte
+	CacheTTL time.Duration
+	Retries  bool
 }
 
 type queryResults struct {

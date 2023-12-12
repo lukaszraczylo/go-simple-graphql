@@ -1,570 +1,304 @@
 package gql
 
 import (
-	"math/rand"
 	"reflect"
 	"testing"
-
-	"github.com/stretchr/testify/assert"
 )
 
-func TestBaseClient_convertToJson(t *testing.T) {
-	type fields struct {
-	}
+func (suite *Tests) TestBaseClient_convertToJSON() {
 	type args struct {
 		v any
 	}
 	tests := []struct {
-		name   string
-		fields fields
-		args   args
-		want   []byte
+		name string
+		args args
+		want []byte
 	}{
 		{
-			name:   "Test convertToJson",
-			fields: fields{},
+			name: "TestBaseClient_convertToJSON_query",
+			args: args{
+				v: `query { viewer { login } }`,
+			},
+			want: []byte(`"query { viewer { login } }"`),
+		},
+		{
+			name: "TestBaseClient_convertToJSON_variables",
 			args: args{
 				v: map[string]interface{}{
-					"query": "query { hello }",
+					"login": "lukaszraczylo",
+					"first": 10,
 				},
 			},
-			want: []byte(`{"query":"query { hello }"}`),
-		},
-		{
-			name:   "Test convertToJson with variables",
-			fields: fields{},
-			args: args{
-				v: map[string]interface{}{
-					"query":     "query { hello }",
-					"variables": map[string]interface{}{"name": "John"},
-				},
-			},
-			want: []byte(`{"query":"query { hello }","variables":{"name":"John"}}`),
-		},
-		{
-			name:   "Test NewQuery with modifier",
-			fields: fields{},
-			args: args{
-				v: map[string]interface{}{
-					"query":     "query @cached(ttl: 120) { hello }",
-					"variables": map[string]interface{}{"name": "John"},
-				},
-			},
-			want: []byte(`{"query":"query @cached(ttl: 120) { hello }","variables":{"name":"John"}}`),
+			want: []byte(`{"first":10,"login":"lukaszraczylo"}`),
 		},
 	}
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			c := &BaseClient{}
-			if got := c.convertToJson(tt.args.v); !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("BaseClient.convertToJson() = %v, want %v", got, tt.want)
+		suite.T().Run(tt.name, func(t *testing.T) {
+			b := NewConnection()
+			if got := b.convertToJSON(tt.args.v); !reflect.DeepEqual(got, tt.want) {
+				assert.Equal(tt.want, got)
 			}
 		})
 	}
 }
 
-func TestBaseClient_NewQuery(t *testing.T) {
-	type fields struct {
-	}
+func (suite *Tests) TestBaseClient_compileQuery() {
 	type args struct {
-		q []any
+		query_partials []any
 	}
 	tests := []struct {
-		fields fields
-		want   *Query
-		name   string
-		args   args
+		wantQ *Query
+		name  string
+		args  args
 	}{
 		{
-			name:   "Test NewQuery",
-			fields: fields{},
+			name: "TestBaseClient_compileQuery_query",
 			args: args{
-				q: []any{
-					"query { hello }",
+				query_partials: []any{
+					`query { viewer { login } }`,
 				},
 			},
-			want: &Query{
-				compiledQuery: []byte(`{"variables":null,"query":"query { hello }"}`),
+			wantQ: &Query{
+				Query:     `query { viewer { login } }`,
+				JsonQuery: []byte(`{"query":"query { viewer { login } }"}`),
 			},
 		},
 		{
-			name:   "Test NewQuery with variables",
-			fields: fields{},
+			name: "TestBaseClient_compileQuery_with_variables",
 			args: args{
-				q: []any{
-					"query { hello }",
-					map[string]interface{}{"name": "John"},
+				query_partials: []any{
+					`query { viewer { login } }`,
+					map[string]interface{}{
+						"login": "lukaszraczylo",
+						"first": 10,
+					},
 				},
 			},
-			want: &Query{
-				compiledQuery: []byte(`{"variables":{"name":"John"},"query":"query { hello }"}`),
+			wantQ: &Query{
+				Query: `query { viewer { login } }`,
+				Variables: map[string]interface{}{
+					"login": "lukaszraczylo",
+					"first": 10,
+				},
+				JsonQuery: []byte(`{"variables":{"first":10,"login":"lukaszraczylo"},"query":"query { viewer { login } }"}`),
 			},
 		},
 		{
-			name:   "Test NewQuery with modifier",
-			fields: fields{},
+			name: "TestBaseClient_compileQuery_variables_without_query",
 			args: args{
-				q: []any{
-					"query @cached(ttl: 120) { hello }",
-					map[string]interface{}{"name": "John"},
+				query_partials: []any{
+					map[string]interface{}{
+						"login": "lukaszraczylo",
+						"first": 10,
+					},
 				},
 			},
-			want: &Query{
-				compiledQuery: []byte(`{"variables":{"name":"John"},"query":"query @cached(ttl: 120) { hello }"}`),
-			},
+			wantQ: nil,
 		},
 	}
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			c := NewConnection()
-			gotQuery := c.NewQuery(tt.args.q...)
-			assert.Equal(t, tt.want.query, gotQuery.query)
-			assert.Equal(t, tt.want.variables, gotQuery.variables)
-			assert.Equal(t, tt.want.compiledQuery, gotQuery.compiledQuery)
+		suite.T().Run(tt.name, func(t *testing.T) {
+			b := NewConnection()
+			got := b.compileQuery(tt.args.query_partials...)
+			assert.Equal(tt.wantQ, got)
 		})
 	}
 }
 
-func TestBaseClient_decodeResponse(t *testing.T) {
-	type fields struct {
-		responseType string
-	}
+func (suite *Tests) TestBaseClient_Query() {
 	type args struct {
-		jsonData []byte
+		variables map[string]interface{}
+		headers   map[string]interface{}
+		query     string
 	}
 	tests := []struct {
-		fields fields
-		want   any
-		name   string
-		args   args
+		args               args
+		wantReturned_value any
+		name               string
+		graphQLServer      string
+		wantType           string
+		wantErr            bool
 	}{
 		{
-			name: "Test decodeResponse - string",
-			fields: fields{
-				responseType: "string",
-			},
+			name:          "TestBaseClient_Query_spacex_working",
+			graphQLServer: "https://spacex-production.up.railway.app/",
 			args: args{
-				jsonData: []byte(`{"data":{"hello":"world"}}`),
-			},
-			want: `{"data":{"hello":"world"}}`,
-		},
-		{
-			name: "Test decodeResponse - byte",
-			fields: fields{
-				responseType: "byte",
-			},
-			args: args{
-				jsonData: []byte(`{"data":{"hello":"world"}}`),
-			},
-			want: []byte(`{"data":{"hello":"world"}}`),
-		},
-		{
-			name: "Test decodeResponse - mapstring",
-			fields: fields{
-				responseType: "mapstring",
-			},
-			args: args{
-				jsonData: []byte(`{"data":{"hello":"world"}}`),
-			},
-			want: map[string]interface{}{
-				"data": map[string]interface{}{
-					"hello": "world",
-				},
-			},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			c := NewConnection()
-			c.responseType = tt.fields.responseType
-			if got := c.decodeResponse(tt.args.jsonData); !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("BaseClient.decodeResponse() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
-func TestBaseClient_Query(t *testing.T) {
-	type fields struct {
-		graphql_endpoint string
-		repeat           int
-	}
-	type args struct {
-		queryVariables interface{}
-		queryHeaders   map[string]interface{}
-		queryContent   string
-	}
-	tests := []struct {
-		want    any
-		args    args
-		name    string
-		fields  fields
-		wantErr bool
-	}{
-		{
-			name: "Test Query - failing",
-			fields: fields{
-				graphql_endpoint: "https://spacex-production.up.railway.app/",
-			},
-			args: args{
-				queryContent: "query { hello }",
-			},
-			want:    ``,
-			wantErr: true,
-		},
-		{
-			name: "Test Query - success",
-			fields: fields{
-				graphql_endpoint: "https://spacex-production.up.railway.app/",
-			},
-			args: args{
-				queryContent: `query Dragons {
+				query: `query Dragons {
 					dragons {
 						name
 					}
 				}`,
-				queryHeaders: map[string]interface{}{
-					"x-apollo-operation-name": "Missions-Potato-Test-Golang",
+				variables: nil,
+				headers: map[string]interface{}{
+					"x-apollo-operation-name": "Dragons/github.com/lukaszraczylo/go-simple-graphql",
 					"content-type":            "application/json",
 				},
 			},
-			wantErr: false,
-			want:    `{"dragons":[{"name":"Dragon 1"},{"name":"Dragon 2"}]}`,
+			wantReturned_value: string(`{"dragons":[{"name":"Dragon 1"},{"name":"Dragon 2"}]}`),
+			wantErr:            false,
 		},
 		{
-			name: "Test Query - success",
-			fields: fields{
-				repeat:           2,
-				graphql_endpoint: "https://spacex-production.up.railway.app/",
-			},
+			name:          "TestBaseClient_Query_spacex_invalid_query",
+			graphQLServer: "https://spacex-production.up.railway.app/",
 			args: args{
-				queryContent: `query Dragons {
-					dragons {
-						name
-						first_flight
-					}
-				}`,
-				queryHeaders: map[string]interface{}{
-					"x-apollo-operation-name": "Missions-Potato-Test-Golang-Cached",
-					"content-type":            "application/json",
-				},
-			},
-			wantErr: false,
-			want:    `{"dragons":[{"first_flight":"2010-12-08","name":"Dragon 1"},{"first_flight":"2019-03-02","name":"Dragon 2"}]}`,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			c := NewConnection()
-
-			if tt.fields.graphql_endpoint != "" {
-				c.endpoint = tt.fields.graphql_endpoint
-			}
-
-			repeat := 1
-			if tt.fields.repeat != 0 {
-				repeat = tt.fields.repeat
-			}
-
-			for i := 0; i < repeat; i++ {
-
-				got, err := c.Query(tt.args.queryContent, tt.args.queryVariables, tt.args.queryHeaders)
-
-				if err != nil && tt.wantErr {
-					assert.Error(t, err)
-				} else {
-					assert.NoError(t, err)
-					assert.Equal(t, tt.want, got)
-				}
-			}
-		})
-	}
-}
-
-/// benchmarks
-
-func BenchmarkBaseClient_convertToJson(b *testing.B) {
-	c := NewConnection()
-	query := c.NewQuery("query { hello }")
-	for i := 0; i < b.N; i++ {
-		_ = c.convertToJson(query)
-	}
-}
-
-func BenchmarkNewQuery(b *testing.B) {
-	c := NewConnection()
-	for i := 0; i < b.N; i++ {
-		_ = c.NewQuery("query { hello }")
-	}
-}
-
-func BenchmarkDecodeResponse(b *testing.B) {
-	c := NewConnection()
-	for i := 0; i < b.N; i++ {
-		_ = c.decodeResponse([]byte(`{"data":{"hello":"world"}}`))
-	}
-}
-
-func BenchmarkQueryNoCache(b *testing.B) {
-	c := NewConnection()
-	c.cache.enabled = false
-	for i := 0; i < b.N; i++ {
-		_, _ = c.Query(`query MyQuery {
-			bots {
-				bot_name
-			}
-		}`, nil, nil)
-	}
-}
-
-func BenchmarkQueryWithCache(b *testing.B) {
-	c := NewConnection()
-	c.cache.enabled = true
-	for i := 0; i < b.N; i++ {
-		_, _ = c.Query(`query MyQuery {
-			bots {
-				bot_name
-			}
-		}`, nil, nil)
-	}
-}
-
-func TestBaseClient_parseQueryHeaders(t *testing.T) {
-	type fields struct {
-	}
-	type args struct {
-		queryHeaders map[string]interface{}
-	}
-	tests := []struct {
-		fields            fields
-		args              args
-		wantReturnHeaders map[string]interface{}
-		name              string
-	}{
-		{
-			name:   "Test parseQueryHeaders - no change",
-			fields: fields{},
-			args: args{
-				queryHeaders: map[string]interface{}{
-					"x-test-header":      "test",
-					"x-test-header-next": true,
-				},
-			},
-			wantReturnHeaders: map[string]interface{}{
-				"x-test-header":      "test",
-				"x-test-header-next": true,
-			},
-		},
-		{
-			name:   "Test parseQueryHeaders - lib-headers removed",
-			fields: fields{},
-			args: args{
-				queryHeaders: map[string]interface{}{
-					"x-test-header": "test",
-					"gqlcache":      true,
-				},
-			},
-			wantReturnHeaders: map[string]interface{}{
-				"x-test-header": "test",
-			},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			q := &Query{}
-			if gotReturnHeaders, _, _, _ := q.parseQueryHeaders(tt.args.queryHeaders); !reflect.DeepEqual(gotReturnHeaders, tt.wantReturnHeaders) {
-				t.Errorf("BaseClient.parseQueryHeaders() = %v, want %v", gotReturnHeaders, tt.wantReturnHeaders)
-			}
-		})
-	}
-}
-
-func TestBaseClient_QueryCache(t *testing.T) {
-	type fields struct {
-		graphql_endpoint string
-		cache_enabled    bool
-	}
-	type args struct {
-		queryVariables interface{}
-		queryHeaders   map[string]interface{}
-		queryContent   string
-	}
-	tests := []struct {
-		want    any
-		args    args
-		name    string
-		fields  fields
-		wantErr bool
-	}{
-		{
-			name: "Test QueryCache - enabled",
-			fields: fields{
-				graphql_endpoint: "https://spacex-production.up.railway.app/",
-				cache_enabled:    true,
-			},
-			args: args{
-				queryContent: `query Dragons {
+				query: `query Dragons {
 					dragons {
 						name
 					}
-				}`,
-				queryHeaders: map[string]interface{}{
-					"x-apollo-operation-name": "Missions-Potato-Test-Golang",
+				`,
+				variables: nil,
+				headers: map[string]interface{}{
+					"x-apollo-operation-name": "Dragons/github.com/lukaszraczylo/go-simple-graphql",
 					"content-type":            "application/json",
 				},
 			},
+			wantReturned_value: nil,
+			wantErr:            true,
 		},
 		{
-			name: "Test QueryCache - disabled",
-			fields: fields{
-				graphql_endpoint: "https://spacex-production.up.railway.app/",
-				cache_enabled:    false,
-			},
+			name:          "TestBaseClient_Query_tgbotapp_working",
+			graphQLServer: "https://telegram-bot.app/v1/graphql",
 			args: args{
-				queryContent: `query Dragons {
-					dragons {
+				query: `query {
+					__type(name: "Query") {
 						name
 					}
 				}`,
-				queryHeaders: map[string]interface{}{
-					"x-apollo-operation-name": "Missions-Potato-Test-Golang",
-					"content-type":            "application/json",
+			},
+			wantReturned_value: string(`{"__type":null}`),
+			wantErr:            false,
+		},
+		{
+			name:          "TestBaseClient_Query_tgbotapp_invalid_query",
+			graphQLServer: "https://telegram-bot.app/v1/graphql",
+			args: args{
+				query: `query {
+					__type(name: "Query") {
+						name
+					}
+				`,
+			},
+			wantReturned_value: nil,
+			wantErr:            true,
+		},
+		{
+			name:          "TestBaseClient_Query_tgbotapp_invalid_wrong_field",
+			graphQLServer: "https://telegram-bot.app/v1/graphql",
+			args: args{
+				query: `query {
+					__type(name: "Query") {
+						name2
+					}
+				}`,
+			},
+			wantReturned_value: nil,
+			wantErr:            true,
+		},
+		{
+			name:          "TestBaseClient_Query_tgbotapp_wrong_url",
+			graphQLServer: "https://telegram-bot.app/v0/graphql",
+			args: args{
+				query: `query {
+					__type(name: "Query") {
+						name
+					}
+				}`,
+			},
+			wantReturned_value: nil,
+			wantErr:            true,
+		},
+		{
+			name:          "TestBaseClient_Query_tgbotapp_valid_query_mapstring",
+			graphQLServer: "https://telegram-bot.app/v1/graphql",
+			wantType:      "mapstring",
+			args: args{
+				query: `query {
+					__type(name: "Query") {
+						name
+					}
+				}`,
+			},
+			wantReturned_value: map[string]interface{}{"__type": nil},
+			wantErr:            false,
+		},
+		{
+			name:          "TestBaseClient_Query_tgbotapp_valid_query_byte",
+			graphQLServer: "https://telegram-bot.app/v1/graphql",
+			wantType:      "byte",
+			args: args{
+				query: `query {
+					__type(name: "Query") {
+						name
+					}
+				}`,
+			},
+			wantReturned_value: []byte(`{"__type":null}`),
+			wantErr:            false,
+		},
+		{
+			name:          "TestBaseClient_Query_tgbotapp_valid_query_invalid_type",
+			graphQLServer: "https://telegram-bot.app/v1/graphql",
+			wantType:      "potato",
+			args: args{
+				query: `query {
+					__type(name: "Query") {
+						name
+					}
+				}`,
+			},
+			wantReturned_value: nil,
+			wantErr:            true,
+		},
+		{
+			name:          "TestBaseClient_Query_tgbotapp_valid_query_cache",
+			graphQLServer: "https://telegram-bot.app/v1/graphql",
+			args: args{
+				query: `query {
+					__type(name: "Query") {
+						name
+					}
+				}`,
+				variables: map[string]interface{}{
+					"gqlcache": true,
 				},
 			},
+			wantReturned_value: string(`{"__type":null}`),
+			wantErr:            false,
+		},
+		{
+			name:          "TestBaseClient_Query_tgbotapp_valid_query_with_retry",
+			graphQLServer: "https://telegram-bot.app/v0/graphql",
+			wantType:      "byte",
+			args: args{
+				query: `query {
+					__type(name: "Query") {
+						name
+					}
+				}`,
+				variables: map[string]interface{}{
+					"gqlretries": true,
+				},
+			},
+			wantReturned_value: nil,
+			wantErr:            true,
 		},
 	}
-
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			c := NewConnection()
-			c.cache.enabled = tt.fields.cache_enabled
-
-			if tt.fields.graphql_endpoint != "" {
-				c.endpoint = tt.fields.graphql_endpoint
+		suite.T().Run(tt.name, func(t *testing.T) {
+			b := NewConnection()
+			if tt.graphQLServer != "" {
+				b.SetEndpoint(tt.graphQLServer)
 			}
-
-			_, err := c.Query(tt.args.queryContent, tt.args.queryVariables, tt.args.queryHeaders)
-			if !tt.wantErr {
-				assert.NoError(t, err)
+			if tt.wantType != "" {
+				b.SetOutput(tt.wantType)
+			}
+			gotReturned_value, err := b.Query(tt.args.query, tt.args.variables, tt.args.headers)
+			if tt.wantErr {
+				assert.Error(err)
 			} else {
-				assert.Error(t, err)
+				assert.NoError(err)
 			}
-		})
-	}
-}
-
-func TestBaseClient_QueryCacheRandomizedRace(t *testing.T) {
-	type fields struct {
-		graphql_endpoint string
-		cache_enabled    bool
-	}
-	type args struct {
-		queryVariables interface{}
-		queryHeaders   map[string]interface{}
-		queryContent   string
-	}
-	tests := []struct {
-		want    any
-		args    args
-		name    string
-		fields  fields
-		wantErr bool
-	}{
-		{
-			name: "Test QueryCache - enabled",
-			fields: fields{
-				graphql_endpoint: "https://spacex-production.up.railway.app/",
-			},
-			args: args{
-				queryContent: `query Dragons {
-					dragons {
-						name
-					}
-				}`,
-				queryHeaders: map[string]interface{}{
-					"x-apollo-operation-name": "Missions-Potato-Test-Golang",
-					"content-type":            "application/json",
-				},
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			c := NewConnection()
-			if tt.fields.graphql_endpoint != "" {
-				c.endpoint = tt.fields.graphql_endpoint
-			}
-
-			for i := 0; i < 10; i++ {
-				c.cache.enabled = rand.Intn(2) == 0
-				go func() {
-					_, err := c.Query(tt.args.queryContent, tt.args.queryVariables, tt.args.queryHeaders)
-					if !tt.wantErr {
-						assert.NoError(t, err)
-					} else {
-						assert.Error(t, err)
-					}
-				}()
-			}
-		})
-	}
-}
-
-func TestBaseClient_QueryCacheRandomizedRaceViaHeader(t *testing.T) {
-	type fields struct {
-		graphql_endpoint string
-		cache_enabled    bool
-	}
-	type args struct {
-		queryVariables interface{}
-		queryHeaders   map[string]interface{}
-		queryContent   string
-	}
-	tests := []struct {
-		want    any
-		args    args
-		name    string
-		fields  fields
-		wantErr bool
-	}{
-		{
-			name: "Test QueryCache - enabled",
-			fields: fields{
-				graphql_endpoint: "https://spacex-production.up.railway.app/",
-			},
-			args: args{
-				queryContent: `query Dragons {
-					dragons {
-						name
-					}
-				}`,
-				queryHeaders: map[string]interface{}{
-					"x-apollo-operation-name": "Missions-Potato-Test-Golang",
-					"content-type":            "application/json",
-				},
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			c := NewConnection()
-			if tt.fields.graphql_endpoint != "" {
-				c.endpoint = tt.fields.graphql_endpoint
-			}
-
-			for i := 0; i < 10; i++ {
-				go func() {
-					tt.args.queryHeaders["gqlcache"] = rand.Intn(2) == 0
-					_, err := c.Query(tt.args.queryContent, tt.args.queryVariables, tt.args.queryHeaders)
-					if !tt.wantErr {
-						assert.NoError(t, err)
-					} else {
-						assert.Error(t, err)
-					}
-				}()
-			}
+			assert.Equal(tt.wantReturned_value, gotReturned_value)
 		})
 	}
 }

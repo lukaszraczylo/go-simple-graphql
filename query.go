@@ -1,152 +1,108 @@
 package gql
 
 import (
-	"context"
 	"fmt"
-	"strconv"
 
+	"github.com/gookit/goutil"
 	"github.com/gookit/goutil/strutil"
-	"github.com/lukaszraczylo/go-simple-graphql/utils/helpers"
-
 	jsoniter "github.com/json-iterator/go"
 )
 
 var json = jsoniter.ConfigCompatibleWithStandardLibrary
 
-func (c *BaseClient) convertToJson(v any) []byte {
-	json, err := json.Marshal(v)
+func (b *BaseClient) convertToJSON(v any) []byte {
+	jsonData, err := json.Marshal(v)
 	if err != nil {
-		c.Logger.Error("Can't convert to json;", map[string]interface{}{"error": err.Error()})
+		b.Logger.Error("Can't convert to json;", map[string]interface{}{"error": err.Error()})
 		return nil
 	}
-	return json
+	return jsonData
 }
 
-func (c *BaseClient) NewQuery(q ...any) *Query {
-	query := &Query{}
-
-	if len(q) > 0 {
-		for _, v := range q {
-			switch val := v.(type) {
-			case string:
-				query.query = val
-			case map[string]interface{}:
-				query.variables = val
-			case context.Context:
-				query.context = val
-			}
+func (b *BaseClient) compileQuery(query_partials ...any) *Query {
+	q := new(Query)
+	for _, partial := range query_partials {
+		switch val := partial.(type) {
+		case string:
+			q.Query = val
+		case map[string]interface{}:
+			q.Variables = val
 		}
 	}
-
-	query.compiledQuery = c.convertToJson(request{
-		Query:     query.query,
-		Variables: query.variables,
-	})
-
-	c.Logger.Debug("Clearing previously prepared variables and query")
-	query.variables = nil
-
-	if query.context == nil {
-		query.context = context.Background()
+	if q.Query == "" {
+		b.Logger.Error("Can't compile query;", map[string]interface{}{"error": "query is empty"})
+		return nil
 	}
-
-	if c.validate {
-		c.Logger.Warning("Validating query is active")
-	}
-
-	query.query = ""
-	c.Logger.Debug("Query prepared", map[string]interface{}{"query": query.compiledQuery})
-
-	return query
+	q.JsonQuery = b.convertToJSON(q)
+	return q
 }
 
-// Query is a function that sends a query to the server
-// It takes 3 arguments:
-// 1. queryContent: the query string
-// 2. queryVariables: the variables for the query
-// 3. queryHeaders: the headers for the query
-// It looks a bit weird because of the backward compatibility
+func (b *BaseClient) Query(query string, variables map[string]interface{}, headers map[string]interface{}) (returned_value any, err error) {
+	compiledQuery := b.compileQuery(query, variables)
+	if compiledQuery.JsonQuery == nil {
+		b.Logger.Error("Can't compile query;", map[string]interface{}{"error": "query is empty"})
+		return nil, fmt.Errorf("Can't compile query")
+	}
 
-func (c *BaseClient) Query(queryContent string, queryVariables interface{}, queryHeaders map[string]interface{}) (any, error) {
+	b.Logger.Debug("Compiled query;", map[string]interface{}{"query": compiledQuery})
+	enable_cache, enable_retries, recompile_required := compiledQuery.parseHeadersAndVariables(headers)
 
-	compiledQuery := c.NewQuery(queryContent, queryVariables)
-	parseQueryHeaders, enabledCache, headersModified, enabledRetries := compiledQuery.parseQueryHeaders(queryHeaders)
+	if recompile_required {
+		compiledQuery = b.compileQuery(query, variables)
+	}
 
-	var should_cache, retries_enabled bool
 	var queryHash string
 
-	if headersModified {
-		should_cache = enabledCache
-		retries_enabled = enabledRetries
-	} else {
-		should_cache = c.cache.enabled
-		retries_enabled = c.retries.enabled
-	}
-
-	// if queryContent does not start with `query` then we don't want to cache it
-	// because it's probably a mutation or subscription.
-	if !strutil.HasPrefix(queryContent, "query") {
-		should_cache = false
-	}
-
-	if should_cache {
-		queryHash = strutil.Md5(fmt.Sprintf("%s-%+v", compiledQuery.compiledQuery, queryHeaders))
-	}
-
-	q := &queryExecutor{
-		client:          c,
-		query:           compiledQuery.compiledQuery,
-		headers:         parseQueryHeaders,
-		context:         context.Background(),
-		should_cache:    should_cache,
-		retries_enabled: retries_enabled,
-		hash:            queryHash,
-	}
-
-	q.execute()
-	defer q.done()
-
-	return q.result.data, q.result.errors
-}
-
-func (c *BaseClient) decodeResponse(jsonData []byte) any {
-	switch c.responseType {
-	case "mapstring":
-		var response map[string]interface{}
-		err := json.Unmarshal(jsonData, &response)
-		if err != nil {
-			c.Logger.Error("Error while converting to map[string]interface{};", map[string]interface{}{"error": err.Error()})
-			return nil
+	if (enable_cache || b.cache_global) && strutil.HasPrefix(compiledQuery.Query, "query") {
+		b.Logger.Debug("Cache enabled")
+		queryHash = calculateHash(compiledQuery)
+		cached_value := b.cacheLookup(queryHash)
+		if cached_value != nil {
+			b.Logger.Debug("Cache hit", map[string]interface{}{"query": compiledQuery})
+			return cached_value, nil
+		} else {
+			b.Logger.Debug("Cache miss", map[string]interface{}{"query": compiledQuery})
 		}
-		return response
-	case "string":
-		return helpers.BytesToString(jsonData)
-	case "byte":
-		return jsonData
-	default:
-		c.Logger.Error("Unknown response type", map[string]interface{}{"response": c.responseType})
-		return nil
 	}
-}
 
-func (q *Query) parseQueryHeaders(queryHeaders map[string]interface{}) (returnHeaders map[string]interface{}, cache_enabled bool, headers_modified bool, retries_enabled bool) {
-	returnHeaders = make(map[string]interface{})
-	var err error
+	if enable_retries || b.retries_enable {
+		b.Logger.Debug("Retries enabled")
+	}
 
-	for k, v := range queryHeaders {
-		if k == "gqlcache" {
-			cache_enabled, err = strconv.ParseBool(fmt.Sprintf("%v", v))
-			if err != nil {
-				panic(fmt.Sprintf("Unable to parse gqlcache value %s", err.Error()))
+	q := &QueryExecutor{
+		BaseClient: b,
+		Query:      compiledQuery.JsonQuery,
+		Headers:    headers,
+		CacheKey: func() string {
+			if queryHash != "" {
+				return queryHash
+			} else {
+				return "no-cache"
 			}
-			headers_modified = true
-			continue
-		}
-		if k == "gqlretries" {
-			retries_enabled, _ = strconv.ParseBool(fmt.Sprintf("%v", v))
-			continue
-		}
-		returnHeaders[k] = v
+		}(),
+		Retries: enable_retries || b.retries_enable,
 	}
-	return returnHeaders, cache_enabled, headers_modified, retries_enabled
+	defer func() { q = nil }()
+	rv, err := q.executeQuery()
+	if err != nil {
+		b.Logger.Error("Error while executing query;", map[string]interface{}{"error": err.Error()})
+		return nil, err
+	}
+	returned_value, err = q.decodeResponse(rv)
+	return returned_value, err
+}
+
+func (q *Query) parseHeadersAndVariables(headers map[string]interface{}) (enable_cache bool, enable_retries bool, recompile_required bool) {
+	if headers != nil {
+		enable_cache, _ = goutil.ToBool(searchForKeysInMapStringInterface(headers, "gqlcache"))
+		enable_retries, _ = goutil.ToBool(searchForKeysInMapStringInterface(headers, "gqlretries"))
+	}
+	if q.Variables != nil {
+		enable_cache, _ = goutil.ToBool(searchForKeysInMapStringInterface(q.Variables, "gqlcache"))
+		enable_retries, _ = goutil.ToBool(searchForKeysInMapStringInterface(q.Variables, "gqlretries"))
+		delete(q.Variables, "gqlcache")
+		delete(q.Variables, "gqlretries")
+		recompile_required = true
+	}
+	return
 }
