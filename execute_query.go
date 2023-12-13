@@ -2,6 +2,7 @@ package gql
 
 import (
 	"bytes"
+	"compress/gzip"
 	"fmt"
 	"io"
 	"net/http"
@@ -57,7 +58,20 @@ func (qe *QueryExecutor) executeQuery() ([]byte, error) {
 				return fmt.Errorf("HTTP error - unacceptable status code: \"%s\" for \"%s\"", httpResponse.Status, httpRequest.URL)
 			}
 
-			body, err := io.ReadAll(httpResponse.Body)
+			var reader io.ReadCloser
+			encoding := httpResponse.Header.Get("Content-Encoding")
+			if encoding == "gzip" {
+				reader, err = gzip.NewReader(httpResponse.Body)
+				if err != nil {
+					qe.Logger.Debug("Error while creating gzip reader;", map[string]interface{}{"error": err.Error()})
+					return fmt.Errorf("Error while creating gzip reader: %s", err.Error())
+				}
+				defer reader.Close()
+			} else {
+				reader = httpResponse.Body
+			}
+
+			body, err := io.ReadAll(reader)
 			if err != nil {
 				qe.Logger.Debug("Error while reading http response;", map[string]interface{}{"error": err.Error()})
 				return fmt.Errorf("Error while reading http response: %s", err.Error())
