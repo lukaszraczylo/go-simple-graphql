@@ -45,8 +45,13 @@ func (qe *QueryExecutor) executeQuery() ([]byte, error) {
 				qe.Logger.Debug("Error while executing http request", map[string]interface{}{"error": err.Error()})
 				return err
 			}
-			defer io.Copy(io.Discard, httpResponse.Body)
-			defer httpResponse.Body.Close()
+			defer func() {
+				_, err := io.Copy(io.Discard, httpResponse.Body)
+				if err != nil {
+					qe.Logger.Debug("Error while discarding http response body;", map[string]interface{}{"error": err.Error()})
+				}
+				httpResponse.Body.Close()
+			}()
 
 			if httpResponse.StatusCode < 200 || httpResponse.StatusCode >= 204 {
 				return fmt.Errorf("HTTP error - unacceptable status code: \"%s\" for \"%s\"", httpResponse.Status, httpRequest.URL)
@@ -63,7 +68,6 @@ func (qe *QueryExecutor) executeQuery() ([]byte, error) {
 				qe.Logger.Debug("Error while unmarshalling http response;", map[string]interface{}{"error": err.Error()})
 				return fmt.Errorf("Error while unmarshalling http response: %s", err.Error())
 			}
-
 			return nil
 		},
 		retry.OnRetry(func(n uint, err error) {

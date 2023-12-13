@@ -11,14 +11,18 @@ import (
 
 func (b *BaseClient) createHttpClient() (http_client *http.Client) {
 	httpTransport := &http.Transport{
-		MaxIdleConns:          10,
+		MaxIdleConns:          512,
+		MaxConnsPerHost:       512,
+		MaxIdleConnsPerHost:   512,
 		IdleConnTimeout:       15 * time.Second,
 		ResponseHeaderTimeout: 15 * time.Second,
 		DisableKeepAlives:     false,
+		DisableCompression:    false,
 	}
 
 	if strings.HasPrefix(b.endpoint, "http://") {
 		http_client = &http.Client{
+			Timeout:   15 * time.Second,
 			Transport: httpTransport,
 			CheckRedirect: func(req *http.Request, via []*http.Request) error {
 				return http.ErrUseLastResponse
