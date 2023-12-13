@@ -18,7 +18,11 @@ func (qe *QueryExecutor) executeQuery() ([]byte, error) {
 	}
 
 	for key, value := range qe.Headers {
-		httpRequest.Header.Set(key, value.(string))
+		strValue, ok := value.(string)
+		if !ok {
+			strValue = fmt.Sprintf("%v", value)
+		}
+		httpRequest.Header.Set(key, strValue)
 	}
 
 	var retries_max int
