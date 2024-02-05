@@ -3,12 +3,10 @@ package gql
 import (
 	"fmt"
 
+	"github.com/goccy/go-json"
 	"github.com/gookit/goutil"
 	"github.com/gookit/goutil/strutil"
-	jsoniter "github.com/json-iterator/go"
 )
-
-var json = jsoniter.ConfigCompatibleWithStandardLibrary
 
 func (b *BaseClient) convertToJSON(v any) []byte {
 	jsonData, err := json.Marshal(v)

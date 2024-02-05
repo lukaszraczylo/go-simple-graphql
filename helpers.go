@@ -3,6 +3,7 @@ package gql
 import (
 	"fmt"
 
+	"github.com/goccy/go-json"
 	"github.com/gookit/goutil/strutil"
 )
 

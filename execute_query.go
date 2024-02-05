@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/avast/retry-go/v4"
+	"github.com/goccy/go-json"
 )
 
 func (qe *QueryExecutor) executeQuery() ([]byte, error) {
