@@ -50,12 +50,12 @@ func (suite *Tests) TestBaseClient_decodeResponse() {
 		response []byte
 	}
 	tests := []struct {
-		name     string
-		args     args
 		want     any
-		wantErr  bool
+		name     string
 		setType  string
 		wantType string
+		args     args
+		wantErr  bool
 	}{
 		{
 			name: "TestBaseClient_decodeResponse_mapstring",

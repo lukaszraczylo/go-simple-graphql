@@ -11,15 +11,15 @@ import (
 func (b *BaseClient) convertToJSON(v any) []byte {
 	jsonData, err := json.Marshal(v)
 	if err != nil {
-		b.Logger.Error("Can't convert to json;", map[string]interface{}{"error": err.Error()})
+		b.Logger.Error("Can't convert to JSON", map[string]interface{}{"error": err.Error()})
 		return nil
 	}
 	return jsonData
 }
 
-func (b *BaseClient) compileQuery(query_partials ...any) *Query {
-	q := new(Query)
-	for _, partial := range query_partials {
+func (b *BaseClient) compileQuery(queryPartials ...any) *Query {
+	q := &Query{}
+	for _, partial := range queryPartials {
 		switch val := partial.(type) {
 		case string:
 			q.Query = val
@@ -28,42 +28,39 @@ func (b *BaseClient) compileQuery(query_partials ...any) *Query {
 		}
 	}
 	if q.Query == "" {
-		b.Logger.Error("Can't compile query;", map[string]interface{}{"error": "query is empty"})
+		b.Logger.Error("Can't compile query", map[string]interface{}{"error": "query is empty"})
 		return nil
 	}
 	q.JsonQuery = b.convertToJSON(q)
 	return q
 }
 
-func (b *BaseClient) Query(query string, variables map[string]interface{}, headers map[string]interface{}) (returned_value any, err error) {
+func (b *BaseClient) Query(query string, variables map[string]interface{}, headers map[string]interface{}) (any, error) {
 	compiledQuery := b.compileQuery(query, variables)
 	if compiledQuery.JsonQuery == nil {
-		b.Logger.Error("Can't compile query;", map[string]interface{}{"error": "query is empty"})
-		return nil, fmt.Errorf("Can't compile query")
+		b.Logger.Error("Can't compile query", map[string]interface{}{"error": "query is empty"})
+		return nil, fmt.Errorf("can't compile query")
 	}
+	b.Logger.Debug("Compiled query", map[string]interface{}{"query": compiledQuery})
 
-	b.Logger.Debug("Compiled query;", map[string]interface{}{"query": compiledQuery})
-	enable_cache, enable_retries, recompile_required := compiledQuery.parseHeadersAndVariables(headers)
-
-	if recompile_required {
+	enableCache, enableRetries, recompileRequired := compiledQuery.parseHeadersAndVariables(headers)
+	if recompileRequired {
 		compiledQuery = b.compileQuery(query, variables)
 	}
 
 	var queryHash string
-
-	if (enable_cache || b.cache_global) && strutil.HasPrefix(compiledQuery.Query, "query") {
+	if (enableCache || b.cache_global) && strutil.HasPrefix(compiledQuery.Query, "query") {
 		b.Logger.Debug("Cache enabled")
 		queryHash = calculateHash(compiledQuery)
-		cached_value := b.cacheLookup(queryHash)
-		if cached_value != nil {
+		cachedValue := b.cacheLookup(queryHash)
+		if cachedValue != nil {
 			b.Logger.Debug("Cache hit", map[string]interface{}{"query": compiledQuery})
-			return cached_value, nil
-		} else {
-			b.Logger.Debug("Cache miss", map[string]interface{}{"query": compiledQuery})
+			return cachedValue, nil
 		}
+		b.Logger.Debug("Cache miss", map[string]interface{}{"query": compiledQuery})
 	}
 
-	if enable_retries || b.retries_enable {
+	if enableRetries || b.retries_enable {
 		b.Logger.Debug("Retries enabled")
 	}
 
@@ -74,33 +71,36 @@ func (b *BaseClient) Query(query string, variables map[string]interface{}, heade
 		CacheKey: func() string {
 			if queryHash != "" {
 				return queryHash
-			} else {
-				return "no-cache"
 			}
+			return "no-cache"
 		}(),
-		Retries: enable_retries || b.retries_enable,
+		Retries: enableRetries || b.retries_enable,
 	}
 	defer func() { q = nil }()
+
 	rv, err := q.executeQuery()
 	if err != nil {
-		b.Logger.Error("Error while executing query;", map[string]interface{}{"error": err.Error()})
+		b.Logger.Error("Error executing query", map[string]interface{}{"error": err.Error()})
 		return nil, err
 	}
-	returned_value, err = q.decodeResponse(rv)
-	return returned_value, err
+
+	returnedValue, err := q.decodeResponse(rv)
+	return returnedValue, err
 }
 
-func (q *Query) parseHeadersAndVariables(headers map[string]interface{}) (enable_cache bool, enable_retries bool, recompile_required bool) {
-	if headers != nil {
-		enable_cache, _ = goutil.ToBool(searchForKeysInMapStringInterface(headers, "gqlcache"))
-		enable_retries, _ = goutil.ToBool(searchForKeysInMapStringInterface(headers, "gqlretries"))
-	}
+func (q *Query) parseHeadersAndVariables(headers map[string]interface{}) (enableCache, enableRetries, recompileRequired bool) {
+	enableCache, _ = goutil.ToBool(searchForKeysInMapStringInterface(headers, "gqlcache"))
+	enableRetries, _ = goutil.ToBool(searchForKeysInMapStringInterface(headers, "gqlretries"))
+
 	if q.Variables != nil {
-		enable_cache, _ = goutil.ToBool(searchForKeysInMapStringInterface(q.Variables, "gqlcache"))
-		enable_retries, _ = goutil.ToBool(searchForKeysInMapStringInterface(q.Variables, "gqlretries"))
+		varEnableCache, _ := goutil.ToBool(searchForKeysInMapStringInterface(q.Variables, "gqlcache"))
+		varEnableRetries, _ := goutil.ToBool(searchForKeysInMapStringInterface(q.Variables, "gqlretries"))
+		enableCache = enableCache || varEnableCache
+		enableRetries = enableRetries || varEnableRetries
 		delete(q.Variables, "gqlcache")
 		delete(q.Variables, "gqlretries")
-		recompile_required = true
+		recompileRequired = true
 	}
-	return
+
+	return enableCache, enableRetries, recompileRequired
 }

@@ -1,9 +1,8 @@
 package libpack_logging
 
 import (
+	"io"
 	"os"
-	"strings"
-	"sync"
 	"time"
 
 	"github.com/gookit/goutil/envutil"
@@ -11,83 +10,40 @@ import (
 )
 
 type LogConfig struct {
-	baseLogger  zerolog.Logger
-	errorLogger zerolog.Logger
-	nopLogger   zerolog.Logger
-	mu          sync.Mutex
-	minLevel    zerolog.Level
+	logger zerolog.Logger
 }
+
+var baseLogger zerolog.Logger
 
 func init() {
 	zerolog.TimeFieldFormat = time.RFC3339
-	zerolog.MessageFieldName = "msg"
-	zerolog.TimestampFieldName = "ts"
+	zerolog.MessageFieldName = "short_message"
+	zerolog.TimestampFieldName = "timestamp"
 	zerolog.LevelFieldName = "level"
 	zerolog.LevelFatalValue = "critical"
-}
-
-func getMinLogLevel() zerolog.Level {
-	levelStr := strings.ToLower(envutil.Getenv("LOG_LEVEL", "info"))
-	return matchLogLevel(levelStr)
-}
-
-// Add function set the minimum log level instead of using environment variable
-func (lc *LogConfig) SetLogLevel(level string) {
-	lc.mu.Lock()
-	defer lc.mu.Unlock()
-	lc.minLevel = matchLogLevel(level)
-}
-
-// Match the log level provided as string with the log level provided as zerolog.Level
-func matchLogLevel(level string) zerolog.Level {
-	switch level {
-	case "debug":
-		return zerolog.DebugLevel
-	case "warn":
-		return zerolog.WarnLevel
-	case "error":
-		return zerolog.ErrorLevel
-	case "critical":
-		return zerolog.FatalLevel
-	default:
-		return zerolog.InfoLevel
-	}
+	baseLogger = zerolog.New(os.Stdout).With().Timestamp().Logger()
 }
 
 func NewLogger() *LogConfig {
-	zl := zerolog.New(os.Stdout).With().Timestamp().Logger()
-	// Determine the minimum log level from environment variable
-	return &LogConfig{
-		baseLogger:  zl,
-		errorLogger: zl.Output(os.Stderr),
-		nopLogger:   zerolog.Nop(),
-		minLevel:    getMinLogLevel(),
+	switch logLevel := envutil.Getenv("LOG_LEVEL", "info"); logLevel {
+	case "debug":
+		baseLogger = baseLogger.Level(zerolog.DebugLevel)
+	case "warn":
+		baseLogger = baseLogger.Level(zerolog.WarnLevel)
+	case "error":
+		baseLogger = baseLogger.Level(zerolog.ErrorLevel)
+	default:
+		baseLogger = baseLogger.Level(zerolog.InfoLevel)
 	}
+
+	return &LogConfig{logger: baseLogger}
 }
 
-func (lc *LogConfig) getLogger(level zerolog.Level) zerolog.Logger {
-	if level >= zerolog.ErrorLevel {
-		return lc.errorLogger
-	}
-	if level < lc.minLevel {
-		return lc.nopLogger
-	}
-	return lc.baseLogger
-}
-
-func (lc *LogConfig) Log(level zerolog.Level, message string, fields []map[string]interface{}) {
-	if level < lc.minLevel {
-		return
-	}
-	logger := lc.getLogger(level)
-	event := logger.WithLevel(level).CallerSkipFrame(3)
-	if len(fields) == 0 {
-		event.Msg(message)
-		return
-	}
-
-	field := fields[0]
-	for k, val := range field {
+func (lw *LogConfig) log(w io.Writer, level zerolog.Level, message string, v map[string]interface{}) {
+	e := lw.logger.With().Logger()
+	e = e.Output(w)
+	event := e.WithLevel(level).CallerSkipFrame(3)
+	for k, val := range v {
 		switch v := val.(type) {
 		case string:
 			event.Str(k, v)
@@ -96,39 +52,45 @@ func (lc *LogConfig) Log(level zerolog.Level, message string, fields []map[strin
 		case float64:
 			event.Float64(k, v)
 		default:
-			event.Interface(k, v)
+			event.Interface(k, val)
 		}
 	}
 	event.Msg(message)
 }
 
-func (lc *LogConfig) Info(message string, fields ...map[string]interface{}) {
-	lc.Log(zerolog.InfoLevel, message, fields)
+func (lw *LogConfig) Debug(message string, v ...map[string]interface{}) {
+	if !lw.logger.Debug().Enabled() {
+		return
+	}
+	lw.log(os.Stdout, zerolog.DebugLevel, message, mergeMaps(v))
 }
 
-func (lc *LogConfig) Debug(message string, fields ...map[string]interface{}) {
-	lc.Log(zerolog.DebugLevel, message, fields)
+func (lw *LogConfig) Info(message string, v ...map[string]interface{}) {
+	if !lw.logger.Info().Enabled() {
+		return
+	}
+	lw.log(os.Stdout, zerolog.InfoLevel, message, mergeMaps(v))
 }
 
-func (lc *LogConfig) Warn(message string, fields ...map[string]interface{}) {
-	lc.Log(zerolog.WarnLevel, message, fields)
+func (lw *LogConfig) Warning(message string, v ...map[string]interface{}) {
+	lw.log(os.Stdout, zerolog.WarnLevel, message, mergeMaps(v))
 }
 
-// alias Warning to Warn
-func (lc *LogConfig) Warning(message string, fields ...map[string]interface{}) {
-	lc.Warn(message, fields...)
+func (lw *LogConfig) Error(message string, v ...map[string]interface{}) {
+	lw.log(os.Stderr, zerolog.ErrorLevel, message, mergeMaps(v))
 }
 
-func (lc *LogConfig) Error(message string, fields ...map[string]interface{}) {
-	lc.Log(zerolog.ErrorLevel, message, fields)
-}
-
-func (lc *LogConfig) Critical(message string, fields ...map[string]interface{}) {
-	lc.Log(zerolog.FatalLevel, message, fields)
+func (lw *LogConfig) Critical(message string, v ...map[string]interface{}) {
+	lw.log(os.Stderr, zerolog.FatalLevel, message, mergeMaps(v))
 	os.Exit(1)
 }
 
-// alias Fatal to Critical
-func (lc *LogConfig) Fatal(message string, fields ...map[string]interface{}) {
-	lc.Critical(message, fields...)
+func mergeMaps(maps []map[string]interface{}) map[string]interface{} {
+	result := make(map[string]interface{})
+	for _, m := range maps {
+		for k, v := range m {
+			result[k] = v
+		}
+	}
+	return result
 }

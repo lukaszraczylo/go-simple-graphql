@@ -3,6 +3,7 @@ package gql
 import (
 	"bytes"
 	"compress/gzip"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -13,111 +14,104 @@ import (
 )
 
 func (qe *QueryExecutor) executeQuery() ([]byte, error) {
-	httpRequest, err := http.NewRequest("POST", qe.endpoint, bytes.NewBuffer(qe.Query))
+	httpRequest, err := http.NewRequest(http.MethodPost, qe.endpoint, bytes.NewBuffer(qe.Query))
 	if err != nil {
-		qe.Logger.Error("Can't create HTTP request;", map[string]interface{}{"error": err})
+		qe.Logger.Error("Can't create HTTP request", map[string]interface{}{"error": err})
 		return nil, err
 	}
 
 	for key, value := range qe.Headers {
-		strValue, ok := value.(string)
-		if !ok {
-			strValue = fmt.Sprintf("%v", value)
-		}
-		httpRequest.Header.Set(key, strValue)
+		httpRequest.Header.Set(key, fmt.Sprint(value))
 	}
 
-	var retries_max int
-
+	retriesMax := 1
 	if qe.Retries {
-		qe.Logger.Debug("Retries enabled - setting max retries", map[string]interface{}{"retries": qe.retries_number})
-		retries_max = qe.retries_number
+		qe.Logger.Debug("Retries enabled", map[string]interface{}{"retries": qe.retries_number})
+		retriesMax = qe.retries_number
 	} else {
-		qe.Logger.Debug("Retries disabled - setting max retries", map[string]interface{}{"retries": 1})
-		retries_max = 1
+		qe.Logger.Debug("Retries disabled", map[string]interface{}{"retries": 1})
 	}
 
-	var httpResponse *http.Response
 	var queryResult queryResults
-
 	err = retry.Do(
 		func() error {
-			httpResponse, err = qe.client.Do(httpRequest)
+			httpResponse, err := qe.client.Do(httpRequest)
 			if err != nil {
-				qe.Logger.Debug("Error while executing http request", map[string]interface{}{"error": err.Error()})
+				qe.Logger.Debug("Error executing HTTP request", map[string]interface{}{"error": err.Error()})
 				return err
 			}
 			defer func() {
 				_, err := io.Copy(io.Discard, httpResponse.Body)
 				if err != nil {
-					qe.Logger.Debug("Error while discarding http response body;", map[string]interface{}{"error": err.Error()})
+					qe.Logger.Debug("Error discarding HTTP response body", map[string]interface{}{"error": err.Error()})
 				}
 				httpResponse.Body.Close()
 			}()
 
-			if httpResponse.StatusCode < 200 || httpResponse.StatusCode >= 204 {
-				return fmt.Errorf("HTTP error - unacceptable status code: \"%s\" for \"%s\"", httpResponse.Status, httpRequest.URL)
+			if httpResponse.StatusCode < http.StatusOK || httpResponse.StatusCode >= http.StatusNoContent {
+				return fmt.Errorf("HTTP error - status code: %s for %s", httpResponse.Status, httpRequest.URL)
 			}
 
 			var reader io.ReadCloser
 			encoding := httpResponse.Header.Get("Content-Encoding")
-			if encoding == "gzip" {
+			switch encoding {
+			case "gzip":
 				reader, err = gzip.NewReader(httpResponse.Body)
 				if err != nil {
-					qe.Logger.Debug("Error while creating gzip reader;", map[string]interface{}{"error": err.Error()})
-					return fmt.Errorf("Error while creating gzip reader: %s", err.Error())
+					qe.Logger.Debug("Error creating gzip reader", map[string]interface{}{"error": err.Error()})
+					return fmt.Errorf("error creating gzip reader: %w", err)
 				}
 				defer reader.Close()
-			} else {
+			default:
 				reader = httpResponse.Body
 			}
 
 			body, err := io.ReadAll(reader)
 			if err != nil {
-				qe.Logger.Debug("Error while reading http response;", map[string]interface{}{"error": err.Error()})
-				return fmt.Errorf("Error while reading http response: %s", err.Error())
+				qe.Logger.Debug("Error reading HTTP response", map[string]interface{}{"error": err.Error()})
+				return fmt.Errorf("error reading HTTP response: %w", err)
 			}
 
 			err = json.Unmarshal(body, &queryResult)
 			if err != nil {
-				qe.Logger.Debug("Error while unmarshalling http response;", map[string]interface{}{"error": err.Error()})
-				return fmt.Errorf("Error while unmarshalling http response: %s", err.Error())
+				qe.Logger.Debug("Error unmarshalling HTTP response", map[string]interface{}{"error": err.Error()})
+				return fmt.Errorf("error unmarshalling HTTP response: %w", err)
 			}
+
 			return nil
 		},
 		retry.OnRetry(func(n uint, err error) {
 			qe.Logger.Warning("Retrying query", map[string]interface{}{"error": err.Error(), "attempt": n})
 		}),
-		retry.Attempts(uint(retries_max)),
+		retry.Attempts(uint(retriesMax)),
 		retry.DelayType(retry.BackOffDelay),
 		retry.Delay(time.Duration(qe.retries_delay)),
 		retry.LastErrorOnly(true),
 	)
-
 	if err != nil {
-		qe.Logger.Debug("Error while executing http request - target server", map[string]interface{}{"error": err.Error()})
+		qe.Logger.Debug("Error executing HTTP request", map[string]interface{}{"error": err.Error()})
 		return nil, err
 	}
 
 	if len(queryResult.Errors) > 0 {
-		qe.Logger.Debug("Error while executing query;", map[string]interface{}{"error": queryResult.Errors})
-		return nil, fmt.Errorf("Error while executing query: %s", queryResult.Errors)
+		qe.Logger.Debug("Error executing query", map[string]interface{}{"error": queryResult.Errors})
+		return nil, fmt.Errorf("error executing query: %s", queryResult.Errors)
 	}
 
 	if queryResult.Data == nil {
-		qe.Logger.Debug("Error while executing query", map[string]interface{}{"error": "no data"})
-		return nil, fmt.Errorf("Error while executing query: no data")
+		qe.Logger.Debug("Error executing query", map[string]interface{}{"error": "no data"})
+		return nil, errors.New("error executing query: no data")
 	}
 
-	json_data, err := json.Marshal(queryResult.Data)
+	jsonData, err := json.Marshal(queryResult.Data)
 	if err != nil {
-		qe.Logger.Debug("Error while marshalling query result;", map[string]interface{}{"error": err.Error(), "data": queryResult.Data})
-		return nil, fmt.Errorf("Error while marshalling query result: %s. Data: %s", err.Error(), queryResult.Data)
+		qe.Logger.Debug("Error marshalling query result", map[string]interface{}{"error": err.Error(), "data": queryResult.Data})
+		return nil, fmt.Errorf("error marshalling query result: %w. Data: %s", err, queryResult.Data)
 	}
 
 	if qe.CacheKey != "no-cache" {
-		qe.cache.Set(qe.CacheKey, json_data, qe.CacheTTL)
+		qe.cache.Set(qe.CacheKey, jsonData, qe.CacheTTL)
 	}
 
-	return json_data, nil
+	return jsonData, nil
 }

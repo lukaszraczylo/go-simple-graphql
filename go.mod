@@ -4,6 +4,7 @@ go 1.21
 
 require (
 	github.com/avast/retry-go/v4 v4.6.0
+	github.com/buger/jsonparser v1.1.1
 	github.com/goccy/go-json v0.10.2
 	github.com/gookit/goutil v0.6.15
 	github.com/rs/zerolog v1.32.0
