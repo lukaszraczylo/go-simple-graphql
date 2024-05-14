@@ -28,7 +28,7 @@ func (b *BaseClient) createHttpClient() (http_client *http.Client) {
 				return http.ErrUseLastResponse
 			},
 		}
-		b.Logger.Debug("Using HTTP/1.1 over http")
+		b.Logger.Debug("Using HTTP/1.1 over http", nil)
 	} else if strings.HasPrefix(b.endpoint, "https://") {
 		tlsClientConfig := &tls.Config{}
 		if strings.HasPrefix(b.endpoint, "https://") {
@@ -46,9 +46,9 @@ func (b *BaseClient) createHttpClient() (http_client *http.Client) {
 				return http.ErrUseLastResponse
 			},
 		}
-		b.Logger.Debug("Using HTTP/2 over https")
+		b.Logger.Debug("Using HTTP/2 over https", nil)
 	} else {
-		b.Logger.Critical("Invalid endpoint - neither http or https")
+		b.Logger.Critical("Invalid endpoint - neither http or https", nil)
 	}
 	return http_client
 }

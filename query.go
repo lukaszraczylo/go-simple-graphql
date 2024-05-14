@@ -50,7 +50,7 @@ func (b *BaseClient) Query(query string, variables map[string]interface{}, heade
 
 	var queryHash string
 	if (enableCache || b.cache_global) && strutil.HasPrefix(compiledQuery.Query, "query") {
-		b.Logger.Debug("Cache enabled")
+		b.Logger.Debug("Cache enabled", nil)
 		queryHash = calculateHash(compiledQuery)
 		cachedValue := b.cacheLookup(queryHash)
 		if cachedValue != nil {
@@ -61,7 +61,7 @@ func (b *BaseClient) Query(query string, variables map[string]interface{}, heade
 	}
 
 	if enableRetries || b.retries_enable {
-		b.Logger.Debug("Retries enabled")
+		b.Logger.Debug("Retries enabled", nil)
 	}
 
 	q := &QueryExecutor{
