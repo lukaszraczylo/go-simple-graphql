@@ -7,14 +7,32 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/avast/retry-go/v4"
 	"github.com/goccy/go-json"
 )
 
+var bufferPool = sync.Pool{
+	New: func() interface{} {
+		return new(bytes.Buffer)
+	},
+}
+
 func (qe *QueryExecutor) executeQuery() ([]byte, error) {
-	httpRequest, err := http.NewRequest(http.MethodPost, qe.endpoint, bytes.NewBuffer(qe.Query))
+	// Reuse buffer from pool to avoid allocations
+	buf := bufferPool.Get().(*bytes.Buffer)
+	defer bufferPool.Put(buf)
+	buf.Reset()
+
+	_, err := buf.Write(qe.Query)
+	if err != nil {
+		qe.Logger.Error("Can't write to buffer", map[string]interface{}{"error": err})
+		return nil, err
+	}
+
+	httpRequest, err := http.NewRequest(http.MethodPost, qe.endpoint, buf)
 	if err != nil {
 		qe.Logger.Error("Can't create HTTP request", map[string]interface{}{"error": err})
 		return nil, err
@@ -54,15 +72,14 @@ func (qe *QueryExecutor) executeQuery() ([]byte, error) {
 
 			var reader io.ReadCloser
 			encoding := httpResponse.Header.Get("Content-Encoding")
-			switch encoding {
-			case "gzip":
+			if encoding == "gzip" {
 				reader, err = gzip.NewReader(httpResponse.Body)
 				if err != nil {
 					qe.Logger.Debug("Error creating gzip reader", map[string]interface{}{"error": err.Error()})
 					return fmt.Errorf("error creating gzip reader: %w", err)
 				}
 				defer reader.Close()
-			default:
+			} else {
 				reader = httpResponse.Body
 			}
 
@@ -81,7 +98,7 @@ func (qe *QueryExecutor) executeQuery() ([]byte, error) {
 			return nil
 		},
 		retry.OnRetry(func(n uint, err error) {
-			qe.Logger.Warning("Retrying query", map[string]interface{}{"error": err.Error(), "attempt": n})
+			qe.Logger.Warning("Retrying query", map[string]interface{}{"error": err.Error(), "attempt": n + 1})
 		}),
 		retry.Attempts(uint(retriesMax)),
 		retry.DelayType(retry.BackOffDelay),
