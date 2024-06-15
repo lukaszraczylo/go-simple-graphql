@@ -1,10 +1,11 @@
 package gql
 
 import (
+	"crypto/md5"
+	"encoding/hex"
 	"fmt"
 
 	"github.com/goccy/go-json"
-	"github.com/gookit/goutil/strutil"
 )
 
 func searchForKeysInMapStringInterface(msi map[string]interface{}, key string) (value any) {
@@ -15,7 +16,8 @@ func searchForKeysInMapStringInterface(msi map[string]interface{}, key string) (
 }
 
 func calculateHash(query *Query) string {
-	return strutil.Md5(query.JsonQuery)
+	hash := md5.Sum([]byte(query.JsonQuery))
+	return hex.EncodeToString(hash[:])
 }
 
 func (b *BaseClient) cacheLookup(hash string) []byte {
