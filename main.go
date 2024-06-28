@@ -12,7 +12,7 @@ func NewConnection() (b *BaseClient) {
 	b = &BaseClient{
 		endpoint:       envutil.Getenv("GRAPHQL_ENDPOINT", "https://api.github.com/graphql"),
 		responseType:   envutil.Getenv("GRAPHQL_OUTPUT", "string"),
-		Logger:         logging.NewLogger(),
+		Logger:         logging.New(),
 		cache:          cache.New(time.Duration(envutil.GetInt("GRAPHQL_CACHE_TTL", 5)) * time.Second),
 		cache_global:   envutil.GetBool("GRAPHQL_CACHE_ENABLED", false),
 		retries_enable: envutil.GetBool("GRAPHQL_RETRIES_ENABLE", false),
@@ -20,7 +20,11 @@ func NewConnection() (b *BaseClient) {
 		retries_number: envutil.GetInt("GRAPHQL_RETRIES_NUMBER", 3),
 	}
 	b.client = b.createHttpClient()
-	b.Logger.Debug("Created new GraphQL client connection", map[string]interface{}{"values": b})
+	b.Logger.Debug(&logging.LogMessage{
+		Message: "Created new GraphQL client connection",
+		Pairs: map[string]interface{}{
+			"values": b,
+		}})
 	return b
 }
 

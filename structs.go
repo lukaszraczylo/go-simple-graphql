@@ -10,7 +10,7 @@ import (
 
 type BaseClient struct {
 	cache          *cache.Cache
-	Logger         *logging.LogConfig
+	Logger         *logging.Logger
 	client         *http.Client
 	endpoint       string
 	responseType   string

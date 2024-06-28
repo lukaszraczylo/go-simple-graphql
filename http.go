@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	libpack_logger "github.com/lukaszraczylo/go-simple-graphql/logging"
 	"golang.org/x/net/http2"
 )
 
@@ -28,7 +29,10 @@ func (b *BaseClient) createHttpClient() (http_client *http.Client) {
 				return http.ErrUseLastResponse
 			},
 		}
-		b.Logger.Debug("Using HTTP/1.1 over http", nil)
+		b.Logger.Debug(&libpack_logger.LogMessage{
+			Message: "Using HTTP/1.1 over http",
+			Pairs:   nil,
+		})
 	} else if strings.HasPrefix(b.endpoint, "https://") {
 		tlsClientConfig := &tls.Config{}
 		if strings.HasPrefix(b.endpoint, "https://") {
@@ -46,9 +50,14 @@ func (b *BaseClient) createHttpClient() (http_client *http.Client) {
 				return http.ErrUseLastResponse
 			},
 		}
-		b.Logger.Debug("Using HTTP/2 over https", nil)
+		b.Logger.Debug(&libpack_logger.LogMessage{
+			Message: "Using HTTP/2 over https",
+			Pairs:   nil,
+		})
 	} else {
-		b.Logger.Critical("Invalid endpoint - neither http or https", nil)
+		b.Logger.Critical(&libpack_logger.LogMessage{
+			Message: "Invalid endpoint - neither http or https",
+		})
 	}
 	return http_client
 }
