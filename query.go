@@ -7,6 +7,7 @@ import (
 	"github.com/goccy/go-json"
 	"github.com/gookit/goutil"
 	"github.com/gookit/goutil/strutil"
+	libpack_logger "github.com/lukaszraczylo/go-simple-graphql/logging"
 )
 
 var jsonBufferPool = sync.Pool{
@@ -22,7 +23,10 @@ func (b *BaseClient) convertToJSON(v any) []byte {
 	*jsonBuffer = (*jsonBuffer)[:0]
 	jsonData, err := json.Marshal(v)
 	if err != nil {
-		b.Logger.Error("Can't convert to JSON", map[string]interface{}{"error": err.Error()})
+		b.Logger.Error(&libpack_logger.LogMessage{
+			Message: "Can't convert to JSON",
+			Pairs:   map[string]interface{}{"error": err.Error()},
+		})
 		return nil
 	}
 	*jsonBuffer = append(*jsonBuffer, jsonData...)
@@ -42,7 +46,10 @@ func (b *BaseClient) compileQuery(queryPartials ...any) *Query {
 	}
 
 	if query == "" {
-		b.Logger.Error("Can't compile query", map[string]interface{}{"error": "query is empty"})
+		b.Logger.Error(&libpack_logger.LogMessage{
+			Message: "Can't compile query",
+			Pairs:   map[string]interface{}{"error": "query is empty"},
+		})
 		return nil
 	}
 
@@ -57,10 +64,16 @@ func (b *BaseClient) compileQuery(queryPartials ...any) *Query {
 func (b *BaseClient) Query(query string, variables map[string]interface{}, headers map[string]interface{}) (any, error) {
 	compiledQuery := b.compileQuery(query, variables)
 	if compiledQuery.JsonQuery == nil {
-		b.Logger.Error("Can't compile query", map[string]interface{}{"error": "query is empty"})
+		b.Logger.Error(&libpack_logger.LogMessage{
+			Message: "Can't compile query",
+			Pairs:   map[string]interface{}{"error": "query is empty"},
+		})
 		return nil, fmt.Errorf("can't compile query")
 	}
-	b.Logger.Debug("Compiled query", map[string]interface{}{"query": compiledQuery})
+	b.Logger.Debug(&libpack_logger.LogMessage{
+		Message: "Compiled query",
+		Pairs:   map[string]interface{}{"query": compiledQuery},
+	})
 
 	enableCache, enableRetries, recompileRequired := compiledQuery.parseHeadersAndVariables(headers)
 	if recompileRequired {
@@ -69,17 +82,29 @@ func (b *BaseClient) Query(query string, variables map[string]interface{}, heade
 
 	var queryHash string
 	if (enableCache || b.cache_global) && strutil.HasPrefix(compiledQuery.Query, "query") {
-		b.Logger.Debug("Cache enabled", nil)
+		b.Logger.Debug(&libpack_logger.LogMessage{
+			Message: "Cache enabled",
+			Pairs:   nil,
+		})
 		queryHash = calculateHash(compiledQuery)
 		if cachedValue := b.cacheLookup(queryHash); cachedValue != nil {
-			b.Logger.Debug("Cache hit", map[string]interface{}{"query": compiledQuery})
+			b.Logger.Debug(&libpack_logger.LogMessage{
+				Message: "Cache hit",
+				Pairs:   map[string]interface{}{"query": compiledQuery},
+			})
 			return cachedValue, nil
 		}
-		b.Logger.Debug("Cache miss", map[string]interface{}{"query": compiledQuery})
+		b.Logger.Debug(&libpack_logger.LogMessage{
+			Message: "Cache miss",
+			Pairs:   map[string]interface{}{"query": compiledQuery},
+		})
 	}
 
 	if enableRetries || b.retries_enable {
-		b.Logger.Debug("Retries enabled", nil)
+		b.Logger.Debug(&libpack_logger.LogMessage{
+			Message: "Retries enabled",
+			Pairs:   nil,
+		})
 	}
 
 	q := &QueryExecutor{
@@ -97,7 +122,10 @@ func (b *BaseClient) Query(query string, variables map[string]interface{}, heade
 
 	rv, err := q.executeQuery()
 	if err != nil {
-		b.Logger.Error("Error executing query", map[string]interface{}{"error": err.Error()})
+		b.Logger.Error(&libpack_logger.LogMessage{
+			Message: "Error executing query",
+			Pairs:   map[string]interface{}{"error": err.Error()},
+		})
 		return nil, err
 	}
 

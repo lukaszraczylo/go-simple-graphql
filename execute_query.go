@@ -12,6 +12,7 @@ import (
 
 	"github.com/avast/retry-go/v4"
 	"github.com/goccy/go-json"
+	libpack_logger "github.com/lukaszraczylo/go-simple-graphql/logging"
 )
 
 var bufferPool = sync.Pool{
@@ -28,13 +29,19 @@ func (qe *QueryExecutor) executeQuery() ([]byte, error) {
 
 	_, err := buf.Write(qe.Query)
 	if err != nil {
-		qe.Logger.Error("Can't write to buffer", map[string]interface{}{"error": err})
+		qe.Logger.Error(&libpack_logger.LogMessage{
+			Message: "Can't write to buffer",
+			Pairs:   map[string]interface{}{"error": err.Error()},
+		})
 		return nil, err
 	}
 
 	httpRequest, err := http.NewRequest(http.MethodPost, qe.endpoint, buf)
 	if err != nil {
-		qe.Logger.Error("Can't create HTTP request", map[string]interface{}{"error": err})
+		qe.Logger.Error(&libpack_logger.LogMessage{
+			Message: "Can't create HTTP request",
+			Pairs:   map[string]interface{}{"error": err.Error()},
+		})
 		return nil, err
 	}
 
@@ -44,10 +51,16 @@ func (qe *QueryExecutor) executeQuery() ([]byte, error) {
 
 	retriesMax := 1
 	if qe.Retries {
-		qe.Logger.Debug("Retries enabled", map[string]interface{}{"retries": qe.retries_number})
+		qe.Logger.Debug(&libpack_logger.LogMessage{
+			Message: "Retries enabled",
+			Pairs:   map[string]interface{}{"retries": qe.retries_number},
+		})
 		retriesMax = qe.retries_number
 	} else {
-		qe.Logger.Debug("Retries disabled", map[string]interface{}{"retries": 1})
+		qe.Logger.Debug(&libpack_logger.LogMessage{
+			Message: "Retries disabled",
+			Pairs:   map[string]interface{}{"retries": 1},
+		})
 	}
 
 	var queryResult queryResults
@@ -55,13 +68,19 @@ func (qe *QueryExecutor) executeQuery() ([]byte, error) {
 		func() error {
 			httpResponse, err := qe.client.Do(httpRequest)
 			if err != nil {
-				qe.Logger.Debug("Error executing HTTP request", map[string]interface{}{"error": err.Error()})
+				qe.Logger.Debug(&libpack_logger.LogMessage{
+					Message: "Error executing HTTP request",
+					Pairs:   map[string]interface{}{"error": err.Error()},
+				})
 				return err
 			}
 			defer func() {
 				_, err := io.Copy(io.Discard, httpResponse.Body)
 				if err != nil {
-					qe.Logger.Debug("Error discarding HTTP response body", map[string]interface{}{"error": err.Error()})
+					qe.Logger.Debug(&libpack_logger.LogMessage{
+						Message: "Error discarding HTTP response body",
+						Pairs:   map[string]interface{}{"error": err.Error()},
+					})
 				}
 				httpResponse.Body.Close()
 			}()
@@ -75,7 +94,10 @@ func (qe *QueryExecutor) executeQuery() ([]byte, error) {
 			if encoding == "gzip" {
 				reader, err = gzip.NewReader(httpResponse.Body)
 				if err != nil {
-					qe.Logger.Debug("Error creating gzip reader", map[string]interface{}{"error": err.Error()})
+					qe.Logger.Debug(&libpack_logger.LogMessage{
+						Message: "Error creating gzip reader",
+						Pairs:   map[string]interface{}{"error": err.Error()},
+					})
 					return fmt.Errorf("error creating gzip reader: %w", err)
 				}
 				defer reader.Close()
@@ -85,20 +107,29 @@ func (qe *QueryExecutor) executeQuery() ([]byte, error) {
 
 			body, err := io.ReadAll(reader)
 			if err != nil {
-				qe.Logger.Debug("Error reading HTTP response", map[string]interface{}{"error": err.Error()})
+				qe.Logger.Debug(&libpack_logger.LogMessage{
+					Message: "Error reading HTTP response",
+					Pairs:   map[string]interface{}{"error": err.Error()},
+				})
 				return fmt.Errorf("error reading HTTP response: %w", err)
 			}
 
 			err = json.Unmarshal(body, &queryResult)
 			if err != nil {
-				qe.Logger.Debug("Error unmarshalling HTTP response", map[string]interface{}{"error": err.Error()})
+				qe.Logger.Debug(&libpack_logger.LogMessage{
+					Message: "Error unmarshalling HTTP response",
+					Pairs:   map[string]interface{}{"error": err.Error()},
+				})
 				return fmt.Errorf("error unmarshalling HTTP response: %w", err)
 			}
 
 			return nil
 		},
 		retry.OnRetry(func(n uint, err error) {
-			qe.Logger.Warning("Retrying query", map[string]interface{}{"error": err.Error(), "attempt": n + 1})
+			qe.Logger.Warning(&libpack_logger.LogMessage{
+				Message: "Retrying query",
+				Pairs:   map[string]interface{}{"error": err.Error(), "attempt": n + 1},
+			})
 		}),
 		retry.Attempts(uint(retriesMax)),
 		retry.DelayType(retry.BackOffDelay),
@@ -106,23 +137,35 @@ func (qe *QueryExecutor) executeQuery() ([]byte, error) {
 		retry.LastErrorOnly(true),
 	)
 	if err != nil {
-		qe.Logger.Debug("Error executing HTTP request", map[string]interface{}{"error": err.Error()})
+		qe.Logger.Debug(&libpack_logger.LogMessage{
+			Message: "Error executing HTTP request",
+			Pairs:   map[string]interface{}{"error": err.Error()},
+		})
 		return nil, err
 	}
 
 	if len(queryResult.Errors) > 0 {
-		qe.Logger.Debug("Error executing query", map[string]interface{}{"error": queryResult.Errors})
+		qe.Logger.Debug(&libpack_logger.LogMessage{
+			Message: "Error executing query",
+			Pairs:   map[string]interface{}{"error": queryResult.Errors},
+		})
 		return nil, fmt.Errorf("error executing query: %s", queryResult.Errors)
 	}
 
 	if queryResult.Data == nil {
-		qe.Logger.Debug("Error executing query", map[string]interface{}{"error": "no data"})
+		qe.Logger.Debug(&libpack_logger.LogMessage{
+			Message: "Error executing query",
+			Pairs:   map[string]interface{}{"error": "no data"},
+		})
 		return nil, errors.New("error executing query: no data")
 	}
 
 	jsonData, err := json.Marshal(queryResult.Data)
 	if err != nil {
-		qe.Logger.Debug("Error marshalling query result", map[string]interface{}{"error": err.Error(), "data": queryResult.Data})
+		qe.Logger.Debug(&libpack_logger.LogMessage{
+			Message: "Error marshalling query result",
+			Pairs:   map[string]interface{}{"error": err.Error(), "data": queryResult.Data},
+		})
 		return nil, fmt.Errorf("error marshalling query result: %w. Data: %s", err, queryResult.Data)
 	}
 

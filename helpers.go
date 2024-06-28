@@ -1,10 +1,12 @@
 package gql
 
 import (
+	"crypto/md5"
+	"encoding/hex"
 	"fmt"
 
 	"github.com/goccy/go-json"
-	"github.com/gookit/goutil/strutil"
+	libpack_logger "github.com/lukaszraczylo/go-simple-graphql/logging"
 )
 
 func searchForKeysInMapStringInterface(msi map[string]interface{}, key string) (value any) {
@@ -15,7 +17,8 @@ func searchForKeysInMapStringInterface(msi map[string]interface{}, key string) (
 }
 
 func calculateHash(query *Query) string {
-	return strutil.Md5(query.JsonQuery)
+	hash := md5.Sum([]byte(query.JsonQuery))
+	return hex.EncodeToString(hash[:])
 }
 
 func (b *BaseClient) cacheLookup(hash string) []byte {
@@ -29,7 +32,10 @@ func (b *BaseClient) decodeResponse(response []byte) (any, error) {
 		var result map[string]interface{}
 		err := json.Unmarshal(response, &result)
 		if err != nil {
-			b.Logger.Error("Can't decode response into mapstring", map[string]interface{}{"error": err.Error()})
+			b.Logger.Error(&libpack_logger.LogMessage{
+				Message: "Can't decode response into mapstring",
+				Pairs:   map[string]interface{}{"error": err.Error()},
+			})
 			return nil, err
 		}
 		return result, nil
@@ -38,7 +44,10 @@ func (b *BaseClient) decodeResponse(response []byte) (any, error) {
 	case "byte":
 		return response, nil
 	default:
-		b.Logger.Error("Can't decode response;", map[string]interface{}{"error": "unknown response type"})
+		b.Logger.Error(&libpack_logger.LogMessage{
+			Message: "Can't decode response",
+			Pairs:   map[string]interface{}{"error": "unknown response type"},
+		})
 		return nil, fmt.Errorf("Can't decode response - unknown response type specified")
 	}
 }
