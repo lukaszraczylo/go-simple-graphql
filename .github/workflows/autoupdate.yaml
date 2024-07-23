@@ -3,7 +3,7 @@ name: Autoupdate go.mod and go.sum
 on:
   workflow_dispatch:
   schedule:
-    - cron: "30 2 * * *"
+    - cron: "0 3 * * *"
 
 env:
   GO_VERSION: ">=1.21"
@@ -63,7 +63,8 @@ jobs:
       - name: Run unit tests
         run: |
           CI_RUN=${CI} make test
-          git config --global --add safe.directory /__w/go-simple-graphql
+          git config --global --add safe.directory /__w/graphql-monitoring-proxy/graphql-monitoring-proxy
+
       - name: Commit changes
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
