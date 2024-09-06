@@ -7,7 +7,7 @@ require (
 	github.com/goccy/go-json v0.10.3
 	github.com/gookit/goutil v0.6.16
 	github.com/stretchr/testify v1.9.0
-	golang.org/x/net v0.28.0
+	golang.org/x/net v0.29.0
 )
 
 require (
