@@ -1,8 +1,8 @@
 package gql
 
 import (
+	"bytes"
 	"fmt"
-	"sync"
 
 	"github.com/goccy/go-json"
 	"github.com/gookit/goutil"
@@ -10,17 +10,13 @@ import (
 	libpack_logger "github.com/lukaszraczylo/go-simple-graphql/logging"
 )
 
-var jsonBufferPool = sync.Pool{
-	New: func() interface{} {
-		return new([]byte)
-	},
-}
-
 func (b *BaseClient) convertToJSON(v any) []byte {
-	jsonBuffer := jsonBufferPool.Get().(*[]byte)
-	defer jsonBufferPool.Put(jsonBuffer)
+	// Reuse buffer to reduce allocations
+	buf := bufferPool.Get().(*bytes.Buffer)
+	defer bufferPool.Put(buf)
+	buf.Reset()
 
-	*jsonBuffer = (*jsonBuffer)[:0]
+	// Use json.Marshal to avoid adding extra newline
 	jsonData, err := json.Marshal(v)
 	if err != nil {
 		b.Logger.Error(&libpack_logger.LogMessage{
@@ -29,8 +25,14 @@ func (b *BaseClient) convertToJSON(v any) []byte {
 		})
 		return nil
 	}
-	*jsonBuffer = append(*jsonBuffer, jsonData...)
-	return *jsonBuffer
+
+	// Copy the bytes to the buffer
+	buf.Write(jsonData)
+
+	// Copy the bytes to a new slice before returning
+	result := make([]byte, buf.Len())
+	copy(result, buf.Bytes())
+	return result
 }
 
 func (b *BaseClient) compileQuery(queryPartials ...any) *Query {
@@ -92,18 +94,11 @@ func (b *BaseClient) Query(query string, variables map[string]interface{}, heade
 				Message: "Cache hit",
 				Pairs:   map[string]interface{}{"query": compiledQuery},
 			})
-			return cachedValue, nil
+			return b.decodeResponse(cachedValue)
 		}
 		b.Logger.Debug(&libpack_logger.LogMessage{
 			Message: "Cache miss",
 			Pairs:   map[string]interface{}{"query": compiledQuery},
-		})
-	}
-
-	if enableRetries || b.retries_enable {
-		b.Logger.Debug(&libpack_logger.LogMessage{
-			Message: "Retries enabled",
-			Pairs:   nil,
 		})
 	}
 
@@ -129,7 +124,7 @@ func (b *BaseClient) Query(query string, variables map[string]interface{}, heade
 		return nil, err
 	}
 
-	return q.decodeResponse(rv)
+	return b.decodeResponse(rv)
 }
 
 func (q *Query) parseHeadersAndVariables(headers map[string]interface{}) (enableCache, enableRetries, recompileRequired bool) {

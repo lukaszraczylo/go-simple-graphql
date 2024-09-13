@@ -27,16 +27,9 @@ func (qe *QueryExecutor) executeQuery() ([]byte, error) {
 	defer bufferPool.Put(buf)
 	buf.Reset()
 
-	_, err := buf.Write(qe.Query)
-	if err != nil {
-		qe.Logger.Error(&libpack_logger.LogMessage{
-			Message: "Can't write to buffer",
-			Pairs:   map[string]interface{}{"error": err.Error()},
-		})
-		return nil, err
-	}
+	buf.Write(qe.Query)
 
-	httpRequest, err := http.NewRequest(http.MethodPost, qe.endpoint, buf)
+	httpRequest, err := http.NewRequest(http.MethodPost, qe.endpoint, nil)
 	if err != nil {
 		qe.Logger.Error(&libpack_logger.LogMessage{
 			Message: "Can't create HTTP request",
@@ -48,78 +41,62 @@ func (qe *QueryExecutor) executeQuery() ([]byte, error) {
 	for key, value := range qe.Headers {
 		httpRequest.Header.Set(key, fmt.Sprint(value))
 	}
+	// Set Content-Type header if not already set
+	if httpRequest.Header.Get("Content-Type") == "" {
+		httpRequest.Header.Set("Content-Type", "application/json")
+	}
 
 	retriesMax := 1
 	if qe.Retries {
-		qe.Logger.Debug(&libpack_logger.LogMessage{
-			Message: "Retries enabled",
-			Pairs:   map[string]interface{}{"retries": qe.retries_number},
-		})
 		retriesMax = qe.retries_number
-	} else {
-		qe.Logger.Debug(&libpack_logger.LogMessage{
-			Message: "Retries disabled",
-			Pairs:   map[string]interface{}{"retries": 1},
-		})
 	}
 
 	var queryResult queryResults
 	err = retry.Do(
 		func() error {
+			// Reset buffer before each retry
+			buf.Reset()
+			buf.Write(qe.Query)
+
+			// Set the body of the request
+			httpRequest.Body = io.NopCloser(bytes.NewReader(buf.Bytes()))
+			httpRequest.ContentLength = int64(buf.Len())
+
 			httpResponse, err := qe.client.Do(httpRequest)
 			if err != nil {
-				qe.Logger.Debug(&libpack_logger.LogMessage{
-					Message: "Error executing HTTP request",
-					Pairs:   map[string]interface{}{"error": err.Error()},
-				})
 				return err
 			}
 			defer func() {
-				_, err := io.Copy(io.Discard, httpResponse.Body)
-				if err != nil {
-					qe.Logger.Debug(&libpack_logger.LogMessage{
-						Message: "Error discarding HTTP response body",
-						Pairs:   map[string]interface{}{"error": err.Error()},
-					})
-				}
+				io.Copy(io.Discard, httpResponse.Body)
 				httpResponse.Body.Close()
 			}()
 
-			if httpResponse.StatusCode < http.StatusOK || httpResponse.StatusCode >= http.StatusNoContent {
+			if httpResponse.StatusCode < http.StatusOK || httpResponse.StatusCode >= http.StatusMultipleChoices {
 				return fmt.Errorf("HTTP error - status code: %s for %s", httpResponse.Status, httpRequest.URL)
 			}
 
-			var reader io.ReadCloser
+			var reader io.Reader
 			encoding := httpResponse.Header.Get("Content-Encoding")
 			if encoding == "gzip" {
-				reader, err = gzip.NewReader(httpResponse.Body)
+				gzipReader, err := gzip.NewReader(httpResponse.Body)
 				if err != nil {
-					qe.Logger.Debug(&libpack_logger.LogMessage{
-						Message: "Error creating gzip reader",
-						Pairs:   map[string]interface{}{"error": err.Error()},
-					})
 					return fmt.Errorf("error creating gzip reader: %w", err)
 				}
-				defer reader.Close()
+				defer gzipReader.Close()
+				reader = gzipReader
 			} else {
 				reader = httpResponse.Body
 			}
 
+			// Read all response body
 			body, err := io.ReadAll(reader)
 			if err != nil {
-				qe.Logger.Debug(&libpack_logger.LogMessage{
-					Message: "Error reading HTTP response",
-					Pairs:   map[string]interface{}{"error": err.Error()},
-				})
 				return fmt.Errorf("error reading HTTP response: %w", err)
 			}
 
+			// Unmarshal response
 			err = json.Unmarshal(body, &queryResult)
 			if err != nil {
-				qe.Logger.Debug(&libpack_logger.LogMessage{
-					Message: "Error unmarshalling HTTP response",
-					Pairs:   map[string]interface{}{"error": err.Error()},
-				})
 				return fmt.Errorf("error unmarshalling HTTP response: %w", err)
 			}
 
@@ -160,6 +137,7 @@ func (qe *QueryExecutor) executeQuery() ([]byte, error) {
 		return nil, errors.New("error executing query: no data")
 	}
 
+	// Marshal queryResult.Data
 	jsonData, err := json.Marshal(queryResult.Data)
 	if err != nil {
 		qe.Logger.Debug(&libpack_logger.LogMessage{

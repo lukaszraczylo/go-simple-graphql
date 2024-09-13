@@ -9,7 +9,7 @@ import (
 	libpack_logger "github.com/lukaszraczylo/go-simple-graphql/logging"
 )
 
-func searchForKeysInMapStringInterface(msi map[string]interface{}, key string) (value any) {
+func searchForKeysInMapStringInterface(msi map[string]interface{}, key string) interface{} {
 	if msi == nil {
 		return nil
 	}
@@ -17,7 +17,7 @@ func searchForKeysInMapStringInterface(msi map[string]interface{}, key string) (
 }
 
 func calculateHash(query *Query) string {
-	hash := md5.Sum([]byte(query.JsonQuery))
+	hash := md5.Sum(query.JsonQuery)
 	return hex.EncodeToString(hash[:])
 }
 
