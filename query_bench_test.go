@@ -36,10 +36,15 @@ func Benchmark_convertToJson(bn *testing.B) {
 		b.convertToJSON(query)
 	}
 }
-
 func Benchmark_Query(bn *testing.B) {
+	mockServer := StartMockServer()
+	bn.Cleanup(func() {
+		mockServer.Close()
+	})
+
 	b := NewConnection()
-	query := `query { viewer { login } }`
+	b.SetEndpoint(mockServer.URL)
+	query := "query { viewer { login } }"
 	variables := map[string]interface{}{
 		"var1": "value1",
 	}
@@ -54,7 +59,13 @@ func Benchmark_Query(bn *testing.B) {
 }
 
 func Benchmark_QueryNoCacheNoRetry(bn *testing.B) {
+	mockServer := StartMockServer()
+	bn.Cleanup(func() {
+		mockServer.Close()
+	})
+
 	b := NewConnection()
+	b.SetEndpoint(mockServer.URL)
 	query := `query { viewer { login } }`
 	variables := map[string]interface{}{
 		"var1": "value1",
@@ -69,7 +80,13 @@ func Benchmark_QueryNoCacheNoRetry(bn *testing.B) {
 }
 
 func Benchmark_QueryWithEmptyVariables(bn *testing.B) {
+	mockServer := StartMockServer()
+	bn.Cleanup(func() {
+		mockServer.Close()
+	})
+
 	b := NewConnection()
+	b.SetEndpoint(mockServer.URL)
 	query := `query { viewer { login } }`
 	headers := map[string]interface{}{
 		"Authorization": "Bearer token",

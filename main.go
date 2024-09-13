@@ -1,6 +1,7 @@
 package gql
 
 import (
+	"net/http"
 	"time"
 
 	"github.com/gookit/goutil/envutil"
@@ -37,4 +38,8 @@ func (b *BaseClient) SetOutput(responseType string) {
 	// check if responseType is allowed
 	// TODO: implement
 	b.responseType = responseType
+}
+
+func (b *BaseClient) SetHTTPClient(client *http.Client) {
+	b.client = client
 }

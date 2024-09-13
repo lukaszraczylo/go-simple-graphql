@@ -1,6 +1,7 @@
 package gql
 
 import (
+	"net/http/httptest"
 	"testing"
 
 	assertions "github.com/stretchr/testify/assert"
@@ -12,8 +13,21 @@ type Tests struct {
 }
 
 var (
-	assert *assertions.Assertions
+	assert     *assertions.Assertions
+	mockServer *httptest.Server
 )
+
+func (suite *Tests) SetupSuite() {
+	// Start mock GraphQL server
+	mockServer = StartMockServer()
+}
+
+func (suite *Tests) TearDownSuite() {
+	// Close the mock server
+	if mockServer != nil {
+		mockServer.Close()
+	}
+}
 
 func (suite *Tests) SetupTest() {
 	assert = assertions.New(suite.T())
