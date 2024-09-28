@@ -4,11 +4,11 @@ import (
 	"bytes"
 	"fmt"
 	"os"
-	"reflect"
 	"testing"
 	"time"
 
 	"github.com/goccy/go-json"
+	"github.com/goccy/go-reflect"
 )
 
 func captureStderr(f func()) string {

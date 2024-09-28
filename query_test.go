@@ -1,8 +1,9 @@
 package gql
 
 import (
-	"reflect"
 	"testing"
+
+	"github.com/goccy/go-reflect"
 )
 
 func (suite *Tests) TestBaseClient_convertToJSON() {
