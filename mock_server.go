@@ -22,8 +22,8 @@ func StartMockServer() *httptest.Server {
 		}
 
 		var req struct {
-			Query     string                 `json:"query"`
 			Variables map[string]interface{} `json:"variables"`
+			Query     string                 `json:"query"`
 		}
 		err = json.Unmarshal(bodyBytes, &req)
 		if err != nil {
