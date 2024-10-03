@@ -6,7 +6,7 @@ require (
 	github.com/avast/retry-go/v4 v4.6.0
 	github.com/goccy/go-json v0.10.3
 	github.com/goccy/go-reflect v1.2.0
-	github.com/gookit/goutil v0.6.16
+	github.com/gookit/goutil v0.6.17
 	github.com/stretchr/testify v1.9.0
 	golang.org/x/net v0.29.0
 )
