@@ -8,7 +8,7 @@ require (
 	github.com/goccy/go-reflect v1.2.0
 	github.com/gookit/goutil v0.6.17
 	github.com/stretchr/testify v1.9.0
-	golang.org/x/net v0.30.0
+	golang.org/x/net v0.31.0
 )
 
 require (
