@@ -8,8 +8,8 @@ github.com/goccy/go-reflect v1.2.0 h1:O0T8rZCuNmGXewnATuKYnkL0xm6o8UNOJZd/gOkb9m
 github.com/goccy/go-reflect v1.2.0/go.mod h1:n0oYZn8VcV2CkWTxi8B9QjkCoq6GTtCEdfmR66YhFtE=
 github.com/gookit/color v1.5.4 h1:FZmqs7XOyGgCAxmWyPslpiok1k05wmY3SJTytgvYFs0=
 github.com/gookit/color v1.5.4/go.mod h1:pZJOeOS8DM43rXbp4AZo1n9zCU2qjpcRko0b6/QJi9w=
-github.com/gookit/goutil v0.6.17 h1:SxmbDz2sn2V+O+xJjJhJT/sq1/kQh6rCJ7vLBiRPZjI=
-github.com/gookit/goutil v0.6.17/go.mod h1:rSw1LchE1I3TDWITZvefoAC9tS09SFu3lHXLCV7EaEY=
+github.com/gookit/goutil v0.6.18 h1:MUVj0G16flubWT8zYVicIuisUiHdgirPAkmnfD2kKgw=
+github.com/gookit/goutil v0.6.18/go.mod h1:AY/5sAwKe7Xck+mEbuxj0n/bc3qwrGNe3Oeulln7zBA=
 github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
 github.com/stretchr/testify v1.9.0 h1:HtqpIVDClZ4nwg75+f6Lvsy/wHu+3BoSGCbBAcpTsTg=
