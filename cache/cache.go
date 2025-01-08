@@ -3,6 +3,7 @@ package libpack_cache
 import (
 	"bytes"
 	"compress/gzip"
+	"hash/fnv"
 	"io"
 	"sync"
 	"time"
@@ -13,12 +14,25 @@ type CacheEntry struct {
 	Value     []byte
 }
 
+const shardCount = 256 // Must be power of 2
+
+type shard struct {
+	entries    map[string]CacheEntry
+	sync.RWMutex
+}
+
 type Cache struct {
 	compressPool   sync.Pool
 	decompressPool sync.Pool
-	entries        sync.Map
-	globalTTL      time.Duration
-	sync.RWMutex
+	shards        [shardCount]*shard
+	globalTTL     time.Duration
+}
+
+// getShard returns the appropriate shard for a given key
+func (c *Cache) getShard(key string) *shard {
+	hash := fnv.New32a()
+	hash.Write([]byte(key))
+	return c.shards[hash.Sum32()%shardCount]
 }
 
 func New(globalTTL time.Duration) *Cache {
@@ -32,11 +46,17 @@ func New(globalTTL time.Duration) *Cache {
 		},
 		decompressPool: sync.Pool{
 			New: func() interface{} {
-				// Ensure that new is returning a new reader initialized with an empty byte buffer
 				r, _ := gzip.NewReader(bytes.NewReader([]byte{}))
 				return r
 			},
 		},
+	}
+
+	// Initialize shards
+	for i := 0; i < shardCount; i++ {
+		cache.shards[i] = &shard{
+			entries: make(map[string]CacheEntry),
+		}
 	}
 
 	go cache.cleanupRoutine(globalTTL)
@@ -52,33 +72,43 @@ func (c *Cache) cleanupRoutine(globalTTL time.Duration) {
 	}
 }
 func (c *Cache) Set(key string, value []byte, ttl time.Duration) {
-	c.Lock() // use the lock
-	defer c.Unlock()
-
-	expiresAt := time.Now().Add(ttl)
+	shard := c.getShard(key)
+	shard.Lock()
+	defer shard.Unlock()
 
 	compressedValue, err := c.compress(value)
 	if err != nil {
 		return
 	}
 
-	entry := CacheEntry{
+	shard.entries[key] = CacheEntry{
 		Value:     compressedValue,
-		ExpiresAt: expiresAt,
+		ExpiresAt: time.Now().Add(ttl),
 	}
-	c.entries.Store(key, entry)
 }
 
 func (c *Cache) Get(key string) ([]byte, bool) {
-	c.RLock() // use the read lock
-	defer c.RUnlock()
-
-	entry, ok := c.entries.Load(key)
-	if !ok || entry.(CacheEntry).ExpiresAt.Before(time.Now()) {
+	shard := c.getShard(key)
+	shard.RLock()
+	entry, ok := shard.entries[key]
+	if !ok {
+		shard.RUnlock()
 		return nil, false
 	}
-	compressedValue := entry.(CacheEntry).Value
-	value, err := c.decompress(compressedValue)
+
+	if entry.ExpiresAt.Before(time.Now()) {
+		shard.RUnlock()
+		// Clean up expired entry in background
+		go func() {
+			shard.Lock()
+			delete(shard.entries, key)
+			shard.Unlock()
+		}()
+		return nil, false
+	}
+	shard.RUnlock()
+
+	value, err := c.decompress(entry.Value)
 	if err != nil {
 		return nil, false
 	}
@@ -87,26 +117,23 @@ func (c *Cache) Get(key string) ([]byte, bool) {
 }
 
 func (c *Cache) Delete(key string) {
-	c.Lock()
-	defer c.Unlock()
-
-	_, ok := c.entries.Load(key)
-	if !ok {
-		return
-	}
-
-	c.entries.Delete(key)
+	shard := c.getShard(key)
+	shard.Lock()
+	delete(shard.entries, key)
+	shard.Unlock()
 }
 
 func (c *Cache) CleanExpiredEntries() {
 	now := time.Now()
-	c.entries.Range(func(key, value interface{}) bool {
-		entry := value.(CacheEntry)
-		if entry.ExpiresAt.Before(now) {
-			c.entries.Delete(key)
+	for _, shard := range c.shards {
+		shard.Lock()
+		for key, entry := range shard.entries {
+			if entry.ExpiresAt.Before(now) {
+				delete(shard.entries, key)
+			}
 		}
-		return true
-	})
+		shard.Unlock()
+	}
 }
 
 func (c *Cache) compress(data []byte) ([]byte, error) {

@@ -11,56 +11,73 @@ import (
 )
 
 func (b *BaseClient) convertToJSON(v any) []byte {
-	// Reuse buffer to reduce allocations
 	buf := bufferPool.Get().(*bytes.Buffer)
 	defer bufferPool.Put(buf)
 	buf.Reset()
 
-	// Use json.Marshal to avoid adding extra newline
-	jsonData, err := json.Marshal(v)
-	if err != nil {
+	// Use json.NewEncoder for better performance with buffers
+	enc := json.NewEncoder(buf)
+	enc.SetEscapeHTML(false) // Reduce unnecessary escaping
+
+	if err := enc.Encode(v); err != nil {
+		errPairs := errPairsPool.Get().(map[string]interface{})
+		errPairs["error"] = err.Error()
 		b.Logger.Error(&libpack_logger.LogMessage{
 			Message: "Can't convert to JSON",
-			Pairs:   map[string]interface{}{"error": err.Error()},
+			Pairs:   errPairs,
 		})
+		errPairsPool.Put(errPairs)
 		return nil
 	}
 
-	// Copy the bytes to the buffer
-	buf.Write(jsonData)
+	// Get the buffer bytes directly, trimming the trailing newline
+	bytes := buf.Bytes()
+	if len(bytes) > 0 && bytes[len(bytes)-1] == '\n' {
+		bytes = bytes[:len(bytes)-1]
+	}
 
-	// Copy the bytes to a new slice before returning
-	result := make([]byte, buf.Len())
-	copy(result, buf.Bytes())
+	// Make a copy of the bytes since the buffer will be reused
+	result := make([]byte, len(bytes))
+	copy(result, bytes)
 	return result
 }
 
 func (b *BaseClient) compileQuery(queryPartials ...any) *Query {
 	var query string
 	var variables map[string]interface{}
-	for _, partial := range queryPartials {
-		switch val := partial.(type) {
-		case string:
-			query = val
-		case map[string]interface{}:
-			variables = val
+
+	// Pre-allocate the query with an estimated size
+	if len(queryPartials) > 0 {
+		if str, ok := queryPartials[0].(string); ok {
+			query = str
+		}
+	}
+
+	// Only allocate variables map if we have more than one partial
+	if len(queryPartials) > 1 {
+		if vars, ok := queryPartials[1].(map[string]interface{}); ok {
+			variables = vars
 		}
 	}
 
 	if query == "" {
+		errPairs := errPairsPool.Get().(map[string]interface{})
+		errPairs["error"] = "query is empty"
 		b.Logger.Error(&libpack_logger.LogMessage{
 			Message: "Can't compile query",
-			Pairs:   map[string]interface{}{"error": "query is empty"},
+			Pairs:   errPairs,
 		})
+		errPairsPool.Put(errPairs)
 		return nil
 	}
 
-	jsonQuery := b.convertToJSON(&Query{Query: query, Variables: variables})
-	return &Query{
+	// Construct query object once
+	q := &Query{
 		Query:     query,
 		Variables: variables,
-		JsonQuery: jsonQuery,
 	}
+	q.JsonQuery = b.convertToJSON(q)
+	return q
 }
 
 func (b *BaseClient) Query(query string, variables map[string]interface{}, headers map[string]interface{}) (any, error) {

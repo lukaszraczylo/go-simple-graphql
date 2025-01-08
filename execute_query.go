@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"sync"
 	"time"
 
 	"github.com/avast/retry-go/v4"
@@ -15,11 +14,22 @@ import (
 	libpack_logger "github.com/lukaszraczylo/go-simple-graphql/logging"
 )
 
-var bufferPool = sync.Pool{
-	New: func() interface{} {
-		return new(bytes.Buffer)
-	},
-}
+var (
+	// Shared HTTP transport with optimized settings
+	defaultTransport = &http.Transport{
+		MaxIdleConns:        100,
+		MaxIdleConnsPerHost: 100,
+		IdleConnTimeout:     90 * time.Second,
+		DisableCompression:  false, // Enable compression for responses
+		ForceAttemptHTTP2:   true,
+	}
+
+	// Shared HTTP client with timeouts
+	defaultClient = &http.Client{
+		Transport: defaultTransport,
+		Timeout:   30 * time.Second,
+	}
+)
 
 func (qe *QueryExecutor) executeQuery() ([]byte, error) {
 	// Reuse buffer from pool to avoid allocations
@@ -62,7 +72,12 @@ func (qe *QueryExecutor) executeQuery() ([]byte, error) {
 			httpRequest.Body = io.NopCloser(bytes.NewReader(buf.Bytes()))
 			httpRequest.ContentLength = int64(buf.Len())
 
-			httpResponse, err := qe.client.Do(httpRequest)
+			// Use default client if custom client is not set
+			client := qe.client
+			if client == nil {
+				client = defaultClient
+			}
+			httpResponse, err := client.Do(httpRequest)
 			if err != nil {
 				return err
 			}
@@ -88,14 +103,18 @@ func (qe *QueryExecutor) executeQuery() ([]byte, error) {
 				reader = httpResponse.Body
 			}
 
-			// Read all response body
-			body, err := io.ReadAll(reader)
+			// Use buffer pool for reading response
+			respBuf := bufferPool.Get().(*bytes.Buffer)
+			respBuf.Reset()
+			defer bufferPool.Put(respBuf)
+
+			_, err = io.Copy(respBuf, reader)
 			if err != nil {
 				return fmt.Errorf("error reading HTTP response: %w", err)
 			}
 
-			// Unmarshal response
-			err = json.Unmarshal(body, &queryResult)
+			// Unmarshal response directly from buffer
+			err = json.Unmarshal(respBuf.Bytes(), &queryResult)
 			if err != nil {
 				return fmt.Errorf("error unmarshalling HTTP response: %w", err)
 			}
@@ -111,6 +130,7 @@ func (qe *QueryExecutor) executeQuery() ([]byte, error) {
 		retry.Attempts(uint(retriesMax)),
 		retry.DelayType(retry.BackOffDelay),
 		retry.Delay(time.Duration(qe.retries_delay)),
+		retry.MaxDelay(10 * time.Second),
 		retry.LastErrorOnly(true),
 	)
 	if err != nil {
