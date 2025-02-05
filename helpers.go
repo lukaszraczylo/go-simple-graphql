@@ -48,6 +48,6 @@ func (b *BaseClient) decodeResponse(response []byte) (any, error) {
 			Message: "Can't decode response",
 			Pairs:   map[string]interface{}{"error": "unknown response type"},
 		})
-		return nil, fmt.Errorf("Can't decode response - unknown response type specified")
+		return nil, fmt.Errorf("can't decode response - unknown response type specified")
 	}
 }

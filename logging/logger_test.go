@@ -3,37 +3,12 @@ package libpack_logger
 import (
 	"bytes"
 	"fmt"
-	"os"
 	"testing"
 	"time"
 
 	"github.com/goccy/go-json"
 	"github.com/goccy/go-reflect"
 )
-
-func captureStderr(f func()) string {
-	originalStderr := os.Stderr
-	r, w, _ := os.Pipe()
-	os.Stderr = w
-	f()
-	w.Close()
-	var buf bytes.Buffer
-	buf.ReadFrom(r)
-	os.Stderr = originalStderr
-	return buf.String()
-}
-
-func captureStdOut(f func()) string {
-	originalStdout := os.Stdout
-	r, w, _ := os.Pipe()
-	os.Stdout = w
-	f()
-	w.Close()
-	var buf bytes.Buffer
-	buf.ReadFrom(r)
-	os.Stdout = originalStdout
-	return buf.String()
-}
 
 func (suite *LoggerTestSuite) Test_LogMessageString() {
 	msg := &LogMessage{

@@ -3,7 +3,7 @@ package gql
 
 import (
 	"encoding/json"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -15,7 +15,7 @@ func StartMockServer() *httptest.Server {
 	// Create your handler
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Your existing handler code
-		bodyBytes, err := ioutil.ReadAll(r.Body)
+		bodyBytes, err := io.ReadAll(r.Body)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
