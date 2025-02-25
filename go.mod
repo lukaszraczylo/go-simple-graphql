@@ -3,11 +3,11 @@ module github.com/lukaszraczylo/go-simple-graphql
 go 1.21
 
 require (
-	github.com/avast/retry-go/v4 v4.6.0
+	github.com/avast/retry-go/v4 v4.6.1
 	github.com/goccy/go-json v0.10.5
 	github.com/goccy/go-reflect v1.2.0
 	github.com/gookit/goutil v0.6.18
-	github.com/stretchr/testify v1.9.0
+	github.com/stretchr/testify v1.10.0
 	golang.org/x/net v0.35.0
 )
 
