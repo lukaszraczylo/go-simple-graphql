@@ -10,7 +10,7 @@ require (
 	github.com/goccy/go-reflect v1.2.0
 	github.com/gookit/goutil v0.6.18
 	github.com/stretchr/testify v1.10.0
-	golang.org/x/net v0.37.0
+	golang.org/x/net v0.38.0
 )
 
 require (
