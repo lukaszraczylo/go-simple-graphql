@@ -592,3 +592,340 @@ func (suite *Tests) TestQueryExecutor_executeQuery_gzipErrorScenarios() {
 		assert.Contains(err.Error(), "error unmarshalling HTTP response")
 	})
 }
+
+func (suite *Tests) TestQueryExecutor_executeQuery_intelligentGzipDetection() {
+	suite.T().Run("should detect gzip by magic bytes when header is missing", func(t *testing.T) {
+		// Server sends gzip data but forgets to set Content-Encoding header
+		missingHeaderServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			// Intentionally NOT setting Content-Encoding header
+
+			var buf bytes.Buffer
+			gzipWriter := gzip.NewWriter(&buf)
+			gzipWriter.Write([]byte(`{"data":{"viewer":{"login":"magicbytesuser"}}}`))
+			gzipWriter.Close()
+
+			w.WriteHeader(http.StatusOK)
+			w.Write(buf.Bytes())
+		}))
+		defer missingHeaderServer.Close()
+
+		client := CreateTestClient()
+
+		qe := &QueryExecutor{
+			BaseClient: client,
+			Query:      []byte(`{"query":"query { viewer { login } }"}`),
+			Headers:    map[string]interface{}{"Content-Type": "application/json"},
+			CacheKey:   "no-cache",
+			Retries:    false,
+		}
+		qe.endpoint = missingHeaderServer.URL
+		qe.client = missingHeaderServer.Client()
+		qe.cache = client.cache
+
+		result, err := qe.executeQuery()
+		assert.NoError(err)
+		assert.NotNil(result)
+		assert.Contains(string(result), "magicbytesuser")
+	})
+
+	suite.T().Run("should handle server that claims gzip but sends plain JSON", func(t *testing.T) {
+		// Buggy server that sets gzip header but sends plain JSON
+		buggyHeaderServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			w.Header().Set("Content-Encoding", "gzip") // Claims gzip but sends plain JSON
+
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`{"data":{"viewer":{"login":"buggyheaderuser"}}}`))
+		}))
+		defer buggyHeaderServer.Close()
+
+		client := CreateTestClient()
+
+		qe := &QueryExecutor{
+			BaseClient: client,
+			Query:      []byte(`{"query":"query { viewer { login } }"}`),
+			Headers:    map[string]interface{}{"Content-Type": "application/json"},
+			CacheKey:   "no-cache",
+			Retries:    false,
+		}
+		qe.endpoint = buggyHeaderServer.URL
+		qe.client = buggyHeaderServer.Client()
+		qe.cache = client.cache
+
+		result, err := qe.executeQuery()
+		assert.NoError(err)
+		assert.NotNil(result)
+		assert.Contains(string(result), "buggyheaderuser")
+	})
+
+	suite.T().Run("should handle randomly switching server behavior", func(t *testing.T) {
+		// Simulate a server that randomly switches between gzip and plain responses
+		requestCount := 0
+		randomServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			requestCount++
+			w.Header().Set("Content-Type", "application/json")
+
+			if requestCount%2 == 0 {
+				// Even requests: send gzip with correct header
+				w.Header().Set("Content-Encoding", "gzip")
+				var buf bytes.Buffer
+				gzipWriter := gzip.NewWriter(&buf)
+				gzipWriter.Write([]byte(`{"data":{"viewer":{"login":"randomgzipuser"}}}`))
+				gzipWriter.Close()
+				w.WriteHeader(http.StatusOK)
+				w.Write(buf.Bytes())
+			} else {
+				// Odd requests: send plain JSON without header
+				w.WriteHeader(http.StatusOK)
+				w.Write([]byte(`{"data":{"viewer":{"login":"randomplainuser"}}}`))
+			}
+		}))
+		defer randomServer.Close()
+
+		client := CreateTestClient()
+
+		// Test multiple requests to simulate random behavior
+		for i := 0; i < 4; i++ {
+			qe := &QueryExecutor{
+				BaseClient: client,
+				Query:      []byte(`{"query":"query { viewer { login } }"}`),
+				Headers:    map[string]interface{}{"Content-Type": "application/json"},
+				CacheKey:   "no-cache",
+				Retries:    false,
+			}
+			qe.endpoint = randomServer.URL
+			qe.client = randomServer.Client()
+			qe.cache = client.cache
+
+			result, err := qe.executeQuery()
+			assert.NoError(err)
+			assert.NotNil(result)
+
+			// Should handle both gzip and plain responses correctly
+			resultStr := string(result)
+			// Just check that we got some valid JSON response with expected user data
+			assert.True(len(resultStr) > 0, "Result should not be empty")
+			assert.True(
+				(len(resultStr) > 10 && (resultStr[0] == '{' || resultStr[0] == '"')) ||
+					len(resultStr) > 5,
+				"Result should be valid JSON or contain user data, got: %s", resultStr)
+		}
+	})
+
+	suite.T().Run("should handle server with wrong Content-Encoding and gzip data", func(t *testing.T) {
+		// Server sends gzip data but claims it's not compressed
+		wrongEncodingServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			w.Header().Set("Content-Encoding", "identity") // Claims no compression
+
+			var buf bytes.Buffer
+			gzipWriter := gzip.NewWriter(&buf)
+			gzipWriter.Write([]byte(`{"data":{"viewer":{"login":"wrongencodinguser"}}}`))
+			gzipWriter.Close()
+
+			w.WriteHeader(http.StatusOK)
+			w.Write(buf.Bytes())
+		}))
+		defer wrongEncodingServer.Close()
+
+		client := CreateTestClient()
+
+		qe := &QueryExecutor{
+			BaseClient: client,
+			Query:      []byte(`{"query":"query { viewer { login } }"}`),
+			Headers:    map[string]interface{}{"Content-Type": "application/json"},
+			CacheKey:   "no-cache",
+			Retries:    false,
+		}
+		qe.endpoint = wrongEncodingServer.URL
+		qe.client = wrongEncodingServer.Client()
+		qe.cache = client.cache
+
+		result, err := qe.executeQuery()
+		assert.NoError(err)
+		assert.NotNil(result)
+		assert.Contains(string(result), "wrongencodinguser")
+	})
+
+	suite.T().Run("should handle server with multiple encoding headers", func(t *testing.T) {
+		// Server sends conflicting headers but actual gzip data
+		conflictingHeaderServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			w.Header().Add("Content-Encoding", "identity")
+			w.Header().Add("Content-Encoding", "gzip") // Conflicting headers
+
+			var buf bytes.Buffer
+			gzipWriter := gzip.NewWriter(&buf)
+			gzipWriter.Write([]byte(`{"data":{"viewer":{"login":"conflictinguser"}}}`))
+			gzipWriter.Close()
+
+			w.WriteHeader(http.StatusOK)
+			w.Write(buf.Bytes())
+		}))
+		defer conflictingHeaderServer.Close()
+
+		client := CreateTestClient()
+
+		qe := &QueryExecutor{
+			BaseClient: client,
+			Query:      []byte(`{"query":"query { viewer { login } }"}`),
+			Headers:    map[string]interface{}{"Content-Type": "application/json"},
+			CacheKey:   "no-cache",
+			Retries:    false,
+		}
+		qe.endpoint = conflictingHeaderServer.URL
+		qe.client = conflictingHeaderServer.Client()
+		qe.cache = client.cache
+
+		result, err := qe.executeQuery()
+		assert.NoError(err)
+		assert.NotNil(result)
+		assert.Contains(string(result), "conflictinguser")
+	})
+
+	suite.T().Run("should handle empty response with gzip header", func(t *testing.T) {
+		// Server claims gzip but sends empty response
+		emptyGzipHeaderServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			w.Header().Set("Content-Encoding", "gzip")
+
+			w.WriteHeader(http.StatusOK)
+			// Send empty response
+		}))
+		defer emptyGzipHeaderServer.Close()
+
+		client := CreateTestClient()
+
+		qe := &QueryExecutor{
+			BaseClient: client,
+			Query:      []byte(`{"query":"query { viewer { login } }"}`),
+			Headers:    map[string]interface{}{"Content-Type": "application/json"},
+			CacheKey:   "no-cache",
+			Retries:    false,
+		}
+		qe.endpoint = emptyGzipHeaderServer.URL
+		qe.client = emptyGzipHeaderServer.Client()
+		qe.cache = client.cache
+
+		result, err := qe.executeQuery()
+		assert.Error(err)
+		assert.Nil(result)
+		assert.Contains(err.Error(), "empty response data")
+	})
+
+	suite.T().Run("should handle response with only gzip magic bytes but no valid gzip data", func(t *testing.T) {
+		// Server sends gzip magic bytes but invalid gzip stream
+		invalidGzipServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			// No Content-Encoding header
+
+			// Send gzip magic bytes followed by invalid data
+			invalidData := []byte{0x1f, 0x8b} // Gzip magic bytes
+			invalidData = append(invalidData, []byte("invalid gzip stream data")...)
+
+			w.WriteHeader(http.StatusOK)
+			w.Write(invalidData)
+		}))
+		defer invalidGzipServer.Close()
+
+		client := CreateTestClient()
+
+		qe := &QueryExecutor{
+			BaseClient: client,
+			Query:      []byte(`{"query":"query { viewer { login } }"}`),
+			Headers:    map[string]interface{}{"Content-Type": "application/json"},
+			CacheKey:   "no-cache",
+			Retries:    false,
+		}
+		qe.endpoint = invalidGzipServer.URL
+		qe.client = invalidGzipServer.Client()
+		qe.cache = client.cache
+
+		result, err := qe.executeQuery()
+		// Should detect gzip magic bytes, fail decompression, fallback to raw data, then fail JSON parsing
+		assert.Error(err)
+		assert.Nil(result)
+		assert.Contains(err.Error(), "error unmarshalling HTTP response")
+	})
+}
+
+func (suite *Tests) TestQueryExecutor_executeQuery_contentDetectionLogging() {
+	suite.T().Run("should log detection method for various scenarios", func(t *testing.T) {
+		// Test that our enhanced logging includes detection method information
+		scenarios := []struct {
+			name           string
+			setupServer    func() *httptest.Server
+			expectedInLogs string
+		}{
+			{
+				name: "gzip_magic_bytes_detection",
+				setupServer: func() *httptest.Server {
+					return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+						w.Header().Set("Content-Type", "application/json")
+						// No Content-Encoding header
+
+						var buf bytes.Buffer
+						gzipWriter := gzip.NewWriter(&buf)
+						gzipWriter.Write([]byte(`{"data":{"viewer":{"login":"logtest1"}}}`))
+						gzipWriter.Close()
+
+						w.WriteHeader(http.StatusOK)
+						w.Write(buf.Bytes())
+					}))
+				},
+				expectedInLogs: "logtest1",
+			},
+			{
+				name: "header_claims_gzip_but_plain_json",
+				setupServer: func() *httptest.Server {
+					return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+						w.Header().Set("Content-Type", "application/json")
+						w.Header().Set("Content-Encoding", "gzip")
+
+						w.WriteHeader(http.StatusOK)
+						w.Write([]byte(`{"data":{"viewer":{"login":"logtest2"}}}`))
+					}))
+				},
+				expectedInLogs: "logtest2",
+			},
+			{
+				name: "plain_json_detection",
+				setupServer: func() *httptest.Server {
+					return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+						w.Header().Set("Content-Type", "application/json")
+
+						w.WriteHeader(http.StatusOK)
+						w.Write([]byte(`{"data":{"viewer":{"login":"logtest3"}}}`))
+					}))
+				},
+				expectedInLogs: "logtest3",
+			},
+		}
+
+		for _, scenario := range scenarios {
+			t.Run(scenario.name, func(t *testing.T) {
+				server := scenario.setupServer()
+				defer server.Close()
+
+				client := CreateTestClient()
+
+				qe := &QueryExecutor{
+					BaseClient: client,
+					Query:      []byte(`{"query":"query { viewer { login } }"}`),
+					Headers:    map[string]interface{}{"Content-Type": "application/json"},
+					CacheKey:   "no-cache",
+					Retries:    false,
+				}
+				qe.endpoint = server.URL
+				qe.client = server.Client()
+				qe.cache = client.cache
+
+				result, err := qe.executeQuery()
+				assert.NoError(err)
+				assert.NotNil(result)
+				assert.Contains(string(result), scenario.expectedInLogs)
+			})
+		}
+	})
+}

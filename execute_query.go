@@ -15,6 +15,14 @@ import (
 	libpack_logger "github.com/lukaszraczylo/go-simple-graphql/logging"
 )
 
+// min returns the smaller of two integers
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
 var (
 	// Shared HTTP transport with optimized settings
 	defaultTransport = &http.Transport{
@@ -131,18 +139,46 @@ func (qe *QueryExecutor) executeQuery() ([]byte, error) {
 			defer bufferPool.Put(respBuf)
 
 			var finalData []byte
+			var detectionMethod string
 
-			// Handle gzip decompression with fallback
-			if encoding == "gzip" {
-				// Try to create gzip reader from raw data
+			// Intelligent content detection: Check for gzip magic bytes regardless of headers
+			// This handles buggy servers that send incorrect Content-Encoding headers
+			isGzipData := len(rawData) >= 2 && rawData[0] == 0x1f && rawData[1] == 0x8b
+
+			logPairs := map[string]interface{}{
+				"content_encoding_header": encoding,
+				"has_gzip_magic_bytes":    isGzipData,
+				"data_size":               len(rawData),
+			}
+
+			// Only add first_two_bytes if we have data
+			if len(rawData) >= 2 {
+				logPairs["first_two_bytes"] = fmt.Sprintf("0x%02x 0x%02x", rawData[0], rawData[1])
+			} else if len(rawData) == 1 {
+				logPairs["first_byte"] = fmt.Sprintf("0x%02x", rawData[0])
+			}
+
+			qe.Logger.Debug(&libpack_logger.LogMessage{
+				Message: "Content format detection",
+				Pairs:   logPairs,
+			})
+
+			if isGzipData {
+				// Data has gzip magic bytes - attempt gzip decompression
+				detectionMethod = "gzip_magic_bytes"
 				gzipReader, err := gzip.NewReader(bytes.NewReader(rawData))
 				if err != nil {
 					qe.Logger.Warning(&libpack_logger.LogMessage{
-						Message: "Failed to create gzip reader, falling back to uncompressed parsing",
-						Pairs:   map[string]interface{}{"gzip_error": err.Error()},
+						Message: "Gzip magic bytes detected but failed to create gzip reader, falling back to uncompressed parsing",
+						Pairs: map[string]interface{}{
+							"gzip_error":              err.Error(),
+							"content_encoding_header": encoding,
+							"detection_method":        detectionMethod,
+						},
 					})
 					// Fallback: treat raw data as uncompressed
 					finalData = rawData
+					detectionMethod = "fallback_to_plain"
 				} else {
 					// Successfully created gzip reader, now try to decompress
 					defer gzipReader.Close()
@@ -151,28 +187,54 @@ func (qe *QueryExecutor) executeQuery() ([]byte, error) {
 					if copyErr != nil {
 						// Gzip decompression failed, try fallback
 						qe.Logger.Warning(&libpack_logger.LogMessage{
-							Message: "Gzip decompression failed, falling back to uncompressed parsing",
+							Message: "Gzip magic bytes detected but decompression failed, falling back to uncompressed parsing",
 							Pairs: map[string]interface{}{
-								"copy_error": copyErr,
-								"raw_size":   len(rawData),
+								"copy_error":              copyErr,
+								"raw_size":                len(rawData),
+								"content_encoding_header": encoding,
+								"detection_method":        detectionMethod,
 							},
 						})
 						// Fallback: treat raw data as uncompressed
 						finalData = rawData
+						detectionMethod = "fallback_to_plain"
 					} else {
 						// Successful decompression
 						finalData = respBuf.Bytes()
 						qe.Logger.Debug(&libpack_logger.LogMessage{
-							Message: "Successfully decompressed gzip response",
+							Message: "Successfully decompressed gzip response using magic byte detection",
 							Pairs: map[string]interface{}{
-								"compressed_size":   len(rawData),
-								"decompressed_size": len(finalData),
+								"compressed_size":         len(rawData),
+								"decompressed_size":       len(finalData),
+								"content_encoding_header": encoding,
+								"detection_method":        detectionMethod,
 							},
 						})
 					}
 				}
+			} else if encoding == "gzip" {
+				// Header claims gzip but no magic bytes - this is a buggy server
+				detectionMethod = "header_claims_gzip_but_no_magic_bytes"
+				qe.Logger.Warning(&libpack_logger.LogMessage{
+					Message: "Server claims gzip encoding but data lacks gzip magic bytes - treating as plain JSON",
+					Pairs: map[string]interface{}{
+						"content_encoding_header": encoding,
+						"detection_method":        detectionMethod,
+						"first_few_bytes":         string(rawData[:min(50, len(rawData))]),
+					},
+				})
+				// Treat as uncompressed since magic bytes are missing
+				finalData = rawData
 			} else {
-				// No compression, use raw data directly
+				// No compression indicated by header and no gzip magic bytes
+				detectionMethod = "plain_json"
+				qe.Logger.Debug(&libpack_logger.LogMessage{
+					Message: "Processing as plain JSON response",
+					Pairs: map[string]interface{}{
+						"content_encoding_header": encoding,
+						"detection_method":        detectionMethod,
+					},
+				})
 				finalData = rawData
 			}
 
@@ -189,8 +251,9 @@ func (qe *QueryExecutor) executeQuery() ([]byte, error) {
 			qe.Logger.Debug(&libpack_logger.LogMessage{
 				Message: "Attempting JSON unmarshaling",
 				Pairs: map[string]interface{}{
-					"data_size":   len(finalData),
-					"data_sample": string(debugData),
+					"data_size":        len(finalData),
+					"data_sample":      string(debugData),
+					"detection_method": detectionMethod,
 				},
 			})
 
@@ -200,10 +263,11 @@ func (qe *QueryExecutor) executeQuery() ([]byte, error) {
 				qe.Logger.Error(&libpack_logger.LogMessage{
 					Message: "JSON unmarshaling failed",
 					Pairs: map[string]interface{}{
-						"error":       err.Error(),
-						"data_size":   len(finalData),
-						"data_sample": string(debugData),
-						"encoding":    encoding,
+						"error":            err.Error(),
+						"data_size":        len(finalData),
+						"data_sample":      string(debugData),
+						"encoding":         encoding,
+						"detection_method": detectionMethod,
 					},
 				})
 				return fmt.Errorf("error unmarshalling HTTP response: %w", err)
