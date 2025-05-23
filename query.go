@@ -1,7 +1,6 @@
 package gql
 
 import (
-	"bytes"
 	"fmt"
 
 	"github.com/goccy/go-json"
@@ -11,9 +10,17 @@ import (
 )
 
 func (b *BaseClient) convertToJSON(v any) []byte {
-	buf := bufferPool.Get().(*bytes.Buffer)
-	defer bufferPool.Put(buf)
-	buf.Reset()
+	// Estimate size based on query structure for better buffer selection
+	estimatedSize := 512 // Base size
+	if query, ok := v.(*Query); ok {
+		estimatedSize += len(query.Query)
+		if query.Variables != nil {
+			estimatedSize += len(query.Variables) * 50 // Rough estimate per variable
+		}
+	}
+
+	buf := getBuffer(estimatedSize)
+	defer putBuffer(buf)
 
 	// Use json.NewEncoder for better performance with buffers
 	enc := json.NewEncoder(buf)
@@ -40,6 +47,39 @@ func (b *BaseClient) convertToJSON(v any) []byte {
 	result := make([]byte, len(bytes))
 	copy(result, bytes)
 	return result
+}
+
+func processFlags(variables map[string]interface{}, headers map[string]interface{}) (enableCache, enableRetries bool, cleanedVariables map[string]interface{}) {
+	// Start with original variables
+	cleanedVariables = variables
+
+	// Check headers first
+	enableCache, _ = goutil.ToBool(searchForKeysInMapStringInterface(headers, "gqlcache"))
+	enableRetries, _ = goutil.ToBool(searchForKeysInMapStringInterface(headers, "gqlretries"))
+
+	// Check variables and clean them if needed
+	if variables != nil {
+		varEnableCache, _ := goutil.ToBool(searchForKeysInMapStringInterface(variables, "gqlcache"))
+		varEnableRetries, _ := goutil.ToBool(searchForKeysInMapStringInterface(variables, "gqlretries"))
+
+		enableCache = enableCache || varEnableCache
+		enableRetries = enableRetries || varEnableRetries
+
+		// Clean variables if flags are present (regardless of their value)
+		_, hasCacheFlag := variables["gqlcache"]
+		_, hasRetriesFlag := variables["gqlretries"]
+
+		if hasCacheFlag || hasRetriesFlag {
+			cleanedVariables = make(map[string]interface{})
+			for k, v := range variables {
+				if k != "gqlcache" && k != "gqlretries" {
+					cleanedVariables[k] = v
+				}
+			}
+		}
+	}
+
+	return enableCache, enableRetries, cleanedVariables
 }
 
 func (b *BaseClient) compileQuery(queryPartials ...any) *Query {
@@ -81,7 +121,11 @@ func (b *BaseClient) compileQuery(queryPartials ...any) *Query {
 }
 
 func (b *BaseClient) Query(query string, variables map[string]interface{}, headers map[string]interface{}) (any, error) {
-	compiledQuery := b.compileQuery(query, variables)
+	// Process flags before compilation to avoid recompilation
+	enableCache, enableRetries, cleanedVariables := processFlags(variables, headers)
+
+	// Compile query once with cleaned variables
+	compiledQuery := b.compileQuery(query, cleanedVariables)
 	if compiledQuery.JsonQuery == nil {
 		b.Logger.Error(&libpack_logger.LogMessage{
 			Message: "Can't compile query",
@@ -93,11 +137,6 @@ func (b *BaseClient) Query(query string, variables map[string]interface{}, heade
 		Message: "Compiled query",
 		Pairs:   map[string]interface{}{"query": compiledQuery},
 	})
-
-	enableCache, enableRetries, recompileRequired := compiledQuery.parseHeadersAndVariables(headers)
-	if recompileRequired {
-		compiledQuery = b.compileQuery(query, variables)
-	}
 
 	var queryHash string
 	if (enableCache || b.cache_global) && strutil.HasPrefix(compiledQuery.Query, "query") {
@@ -142,24 +181,4 @@ func (b *BaseClient) Query(query string, variables map[string]interface{}, heade
 	}
 
 	return b.decodeResponse(rv)
-}
-
-func (q *Query) parseHeadersAndVariables(headers map[string]interface{}) (enableCache, enableRetries, recompileRequired bool) {
-	enableCache, _ = goutil.ToBool(searchForKeysInMapStringInterface(headers, "gqlcache"))
-	enableRetries, _ = goutil.ToBool(searchForKeysInMapStringInterface(headers, "gqlretries"))
-
-	if q.Variables != nil {
-		varEnableCache, _ := goutil.ToBool(searchForKeysInMapStringInterface(q.Variables, "gqlcache"))
-		varEnableRetries, _ := goutil.ToBool(searchForKeysInMapStringInterface(q.Variables, "gqlretries"))
-		enableCache = enableCache || varEnableCache
-		enableRetries = enableRetries || varEnableRetries
-
-		if varEnableCache || varEnableRetries {
-			delete(q.Variables, "gqlcache")
-			delete(q.Variables, "gqlretries")
-			recompileRequired = true
-		}
-	}
-
-	return enableCache, enableRetries, recompileRequired
 }

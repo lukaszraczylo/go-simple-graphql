@@ -27,6 +27,9 @@ func (suite *Tests) TearDownSuite() {
 	if mockServer != nil {
 		mockServer.Close()
 	}
+
+	// Cleanup shared test cache
+	CleanupTestCache()
 }
 
 func (suite *Tests) SetupTest() {

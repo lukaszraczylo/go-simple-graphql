@@ -1,9 +1,9 @@
 package gql
 
 import (
-	"crypto/md5"
 	"encoding/hex"
 	"fmt"
+	"hash/fnv"
 
 	"github.com/goccy/go-json"
 	libpack_logger "github.com/lukaszraczylo/go-simple-graphql/logging"
@@ -17,8 +17,9 @@ func searchForKeysInMapStringInterface(msi map[string]interface{}, key string) i
 }
 
 func calculateHash(query *Query) string {
-	hash := md5.Sum(query.JsonQuery)
-	return hex.EncodeToString(hash[:])
+	hash := fnv.New64a()
+	hash.Write(query.JsonQuery)
+	return hex.EncodeToString(hash.Sum(nil))
 }
 
 func (b *BaseClient) cacheLookup(hash string) []byte {

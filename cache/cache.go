@@ -10,22 +10,27 @@ import (
 )
 
 type CacheEntry struct {
-	ExpiresAt time.Time
-	Value     []byte
+	ExpiresAt    time.Time
+	Value        []byte
+	IsCompressed bool
 }
 
 const shardCount = 256 // Must be power of 2
 
 type shard struct {
-	entries    map[string]CacheEntry
+	entries map[string]CacheEntry
 	sync.RWMutex
 }
 
 type Cache struct {
 	compressPool   sync.Pool
 	decompressPool sync.Pool
-	shards        [shardCount]*shard
-	globalTTL     time.Duration
+	shards         [shardCount]*shard
+	globalTTL      time.Duration
+	cleanupChan    chan struct{}
+	stopChan       chan struct{}
+	stopped        bool
+	mu             sync.RWMutex
 }
 
 // getShard returns the appropriate shard for a given key
@@ -37,7 +42,9 @@ func (c *Cache) getShard(key string) *shard {
 
 func New(globalTTL time.Duration) *Cache {
 	cache := &Cache{
-		globalTTL: globalTTL,
+		globalTTL:   globalTTL,
+		cleanupChan: make(chan struct{}, 1),
+		stopChan:    make(chan struct{}),
 		compressPool: sync.Pool{
 			New: func() interface{} {
 				w := gzip.NewWriter(nil)
@@ -59,31 +66,116 @@ func New(globalTTL time.Duration) *Cache {
 		}
 	}
 
-	go cache.cleanupRoutine(globalTTL)
+	go cache.lazyCleanupWorker()
+	go cache.periodicCleanupRoutine(globalTTL)
 	return cache
 }
 
-func (c *Cache) cleanupRoutine(globalTTL time.Duration) {
-	ticker := time.NewTicker(globalTTL / 2)
-	defer ticker.Stop()
-
-	for range ticker.C {
-		c.CleanExpiredEntries()
+func (c *Cache) lazyCleanupWorker() {
+	for {
+		select {
+		case <-c.cleanupChan:
+			c.mu.RLock()
+			if c.stopped {
+				c.mu.RUnlock()
+				return
+			}
+			c.mu.RUnlock()
+			c.CleanExpiredEntries()
+		case <-c.stopChan:
+			return
+		}
 	}
 }
+
+func (c *Cache) periodicCleanupRoutine(globalTTL time.Duration) {
+	// Use a shorter cleanup interval for better responsiveness, but not less than 1 second
+	cleanupInterval := globalTTL / 4
+	if cleanupInterval < time.Second {
+		cleanupInterval = time.Second
+	}
+
+	ticker := time.NewTicker(cleanupInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			c.mu.RLock()
+			if c.stopped {
+				c.mu.RUnlock()
+				return
+			}
+			c.mu.RUnlock()
+			c.CleanExpiredEntries()
+		case <-c.stopChan:
+			return
+		}
+	}
+}
+
+func (c *Cache) triggerLazyCleanup() {
+	c.mu.RLock()
+	if c.stopped {
+		c.mu.RUnlock()
+		return
+	}
+	c.mu.RUnlock()
+
+	select {
+	case c.cleanupChan <- struct{}{}:
+		// Cleanup triggered
+	default:
+		// Cleanup already pending, skip
+	}
+}
+
+func (c *Cache) Stop() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if c.stopped {
+		return // Already stopped
+	}
+
+	c.stopped = true
+	close(c.stopChan)
+}
+
 func (c *Cache) Set(key string, value []byte, ttl time.Duration) {
 	shard := c.getShard(key)
 	shard.Lock()
 	defer shard.Unlock()
 
-	compressedValue, err := c.compress(value)
-	if err != nil {
-		return
+	const compressionThreshold = 1024 // 1KB threshold
+	var finalValue []byte
+	var isCompressed bool
+
+	if len(value) >= compressionThreshold {
+		compressedValue, err := c.compress(value)
+		if err != nil {
+			// If compression fails, store uncompressed
+			finalValue = value
+			isCompressed = false
+		} else {
+			// Only use compression if it actually reduces size
+			if len(compressedValue) < len(value) {
+				finalValue = compressedValue
+				isCompressed = true
+			} else {
+				finalValue = value
+				isCompressed = false
+			}
+		}
+	} else {
+		finalValue = value
+		isCompressed = false
 	}
 
 	shard.entries[key] = CacheEntry{
-		Value:     compressedValue,
-		ExpiresAt: time.Now().Add(ttl),
+		Value:        finalValue,
+		ExpiresAt:    time.Now().Add(ttl),
+		IsCompressed: isCompressed,
 	}
 }
 
@@ -98,19 +190,22 @@ func (c *Cache) Get(key string) ([]byte, bool) {
 
 	if entry.ExpiresAt.Before(time.Now()) {
 		shard.RUnlock()
-		// Clean up expired entry in background
-		go func() {
-			shard.Lock()
-			delete(shard.entries, key)
-			shard.Unlock()
-		}()
+		// Trigger lazy cleanup instead of immediate deletion
+		c.triggerLazyCleanup()
 		return nil, false
 	}
 	shard.RUnlock()
 
-	value, err := c.decompress(entry.Value)
-	if err != nil {
-		return nil, false
+	var value []byte
+	var err error
+
+	if entry.IsCompressed {
+		value, err = c.decompress(entry.Value)
+		if err != nil {
+			return nil, false
+		}
+	} else {
+		value = entry.Value
 	}
 
 	return value, true

@@ -130,7 +130,7 @@ func (qe *QueryExecutor) executeQuery() ([]byte, error) {
 		retry.Attempts(uint(retriesMax)),
 		retry.DelayType(retry.BackOffDelay),
 		retry.Delay(time.Duration(qe.retries_delay)),
-		retry.MaxDelay(10 * time.Second),
+		retry.MaxDelay(10*time.Second),
 		retry.LastErrorOnly(true),
 	)
 	if err != nil {
