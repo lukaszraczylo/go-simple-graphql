@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"time"
+	"unicode/utf8"
 
 	"github.com/avast/retry-go/v4"
 	"github.com/goccy/go-json"
@@ -18,6 +19,14 @@ import (
 // min returns the smaller of two integers
 func min(a, b int) int {
 	if a < b {
+		return a
+	}
+	return b
+}
+
+// max returns the larger of two integers
+func max(a, b int) int {
+	if a > b {
 		return a
 	}
 	return b
@@ -63,7 +72,7 @@ func (qe *QueryExecutor) executeQuery() ([]byte, error) {
 	}
 	// Set Content-Type header if not already set
 	if httpRequest.Header.Get("Content-Type") == "" {
-		httpRequest.Header.Set("Content-Type", "application/json")
+		httpRequest.Header.Set("Content-Type", "application/json; charset=utf-8")
 	}
 
 	// Explicitly remove Accept-Encoding header to prevent automatic request compression
@@ -83,9 +92,34 @@ func (qe *QueryExecutor) executeQuery() ([]byte, error) {
 			buf.Reset()
 			buf.Write(qe.Query)
 
+			// Comprehensive request body analysis for trailing garbage debugging
+			requestBody := buf.Bytes()
+			qe.Logger.Debug(&libpack_logger.LogMessage{
+				Message: "Request body analysis",
+				Pairs: map[string]interface{}{
+					"body_size":          len(requestBody),
+					"contains_jsonQuery": bytes.Contains(requestBody, []byte(`"jsonQuery"`)),
+					"contains_base64":    bytes.Contains(requestBody, []byte("eyJ")),
+					"first_100_chars":    string(requestBody[:min(100, len(requestBody))]),
+					"last_50_chars":      string(requestBody[max(0, len(requestBody)-50):]),
+					"is_valid_utf8":      utf8.Valid(requestBody),
+					"has_null_bytes":     bytes.Contains(requestBody, []byte{0}),
+					"has_control_chars":  hasControlChars(requestBody),
+				},
+			})
+
+			// Validate request body structure
+			if err := validateRequestBody(requestBody, qe.Logger); err != nil {
+				qe.Logger.Error(&libpack_logger.LogMessage{
+					Message: "Request body validation failed",
+					Pairs:   map[string]interface{}{"error": err.Error()},
+				})
+				return fmt.Errorf("request body validation failed: %w", err)
+			}
+
 			// Set the body of the request (plain JSON, no compression)
-			httpRequest.Body = io.NopCloser(bytes.NewReader(buf.Bytes()))
-			httpRequest.ContentLength = int64(buf.Len())
+			httpRequest.Body = io.NopCloser(bytes.NewReader(requestBody))
+			httpRequest.ContentLength = int64(len(requestBody))
 
 			// Debug log to confirm request is sent as plain JSON
 			qe.Logger.Debug(&libpack_logger.LogMessage{
@@ -350,4 +384,70 @@ func (qe *QueryExecutor) executeQuery() ([]byte, error) {
 	}
 
 	return jsonData, nil
+}
+
+// hasControlChars checks if the byte slice contains control characters that might cause parsing issues
+func hasControlChars(data []byte) bool {
+	for _, b := range data {
+		// Check for control characters except for common whitespace (tab, newline, carriage return)
+		if b < 32 && b != 9 && b != 10 && b != 13 {
+			return true
+		}
+	}
+	return false
+}
+
+// validateRequestBody performs comprehensive validation of the request body
+func validateRequestBody(data []byte, logger *libpack_logger.Logger) error {
+	// Check if data is valid UTF-8
+	if !utf8.Valid(data) {
+		return fmt.Errorf("request body contains invalid UTF-8 sequences")
+	}
+
+	// Check for null bytes
+	if bytes.Contains(data, []byte{0}) {
+		return fmt.Errorf("request body contains null bytes")
+	}
+
+	// Check if it's valid JSON
+	var jsonData map[string]interface{}
+	if err := json.Unmarshal(data, &jsonData); err != nil {
+		return fmt.Errorf("request body is not valid JSON: %w", err)
+	}
+
+	// Check for jsonQuery field (this should never be present)
+	if _, exists := jsonData["jsonQuery"]; exists {
+		logger.Error(&libpack_logger.LogMessage{
+			Message: "CRITICAL: jsonQuery field found in request body - this causes trailing garbage",
+			Pairs: map[string]interface{}{
+				"body_size":         len(data),
+				"jsonQuery_present": true,
+			},
+		})
+		return fmt.Errorf("jsonQuery field found in request body - this would cause trailing garbage")
+	}
+
+	// Check for unexpected base64 data that might indicate double encoding
+	if bytes.Contains(data, []byte("eyJ")) {
+		logger.Warning(&libpack_logger.LogMessage{
+			Message: "Potential base64 encoded JSON detected in request body",
+			Pairs: map[string]interface{}{
+				"body_size":       len(data),
+				"contains_base64": true,
+			},
+		})
+	}
+
+	// Log successful validation
+	logger.Debug(&libpack_logger.LogMessage{
+		Message: "Request body validation passed",
+		Pairs: map[string]interface{}{
+			"body_size":          len(data),
+			"valid_utf8":         true,
+			"valid_json":         true,
+			"no_jsonQuery_field": true,
+		},
+	})
+
+	return nil
 }

@@ -20,6 +20,7 @@ func (b *BaseClient) convertToJSON(v any) []byte {
 	}
 
 	buf := getBuffer(estimatedSize)
+	buf.Reset() // Ensure buffer is clean before use
 	defer putBuffer(buf)
 
 	// Use json.NewEncoder for better performance with buffers

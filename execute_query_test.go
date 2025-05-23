@@ -230,7 +230,7 @@ func (suite *Tests) TestQueryExecutor_executeQuery() {
 		result, err := qe.executeQuery()
 		assert.NoError(err)
 		assert.NotNil(result)
-		assert.Equal("application/json", receivedHeaders.Get("Content-Type"))
+		assert.Equal("application/json; charset=utf-8", receivedHeaders.Get("Content-Type"))
 	})
 
 	suite.T().Run("should handle invalid JSON response", func(t *testing.T) {
