@@ -41,7 +41,7 @@ func TestTrailingGarbageReproduction(t *testing.T) {
 					return v
 				},
 				queryMod:   func(q string) string { return q },
-				expectSize: 356,
+				expectSize: 350,
 			},
 			{
 				name: "with_additional_headers_in_variables",
@@ -424,7 +424,7 @@ func TestPotentialRootCauses(t *testing.T) {
 
 			// The JSON should be the same regardless of Content-Type header
 			assert.True(json.Valid(compiledQuery.JsonQuery))
-			assert.Equal(356, len(compiledQuery.JsonQuery)) // Should be consistent
+			assert.Equal(350, len(compiledQuery.JsonQuery)) // Updated for improved minification
 		}
 	})
 

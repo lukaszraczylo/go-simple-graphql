@@ -19,6 +19,7 @@ type BaseClient struct {
 	MaxGoRoutines  int
 	cache_global   bool
 	retries_enable bool
+	minify_queries bool // Enable GraphQL query minification (default: true)
 }
 
 type Query struct {

@@ -60,9 +60,10 @@ func CleanupTestCache() {
 // CreateTestClient creates a test client with shared resources
 func CreateTestClient() *BaseClient {
 	return &BaseClient{
-		Logger:       GetTestLogger(),
-		cache:        GetTestCache(),
-		endpoint:     "https://example.com/graphql",
-		responseType: "mapstring",
+		Logger:         GetTestLogger(),
+		cache:          GetTestCache(),
+		endpoint:       "https://example.com/graphql",
+		responseType:   "mapstring",
+		minify_queries: true, // Enable query minification by default for tests
 	}
 }

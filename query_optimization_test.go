@@ -124,7 +124,7 @@ func (suite *QueryOptimizationTestSuite) TestDoubleCompilationFix() {
 	// This should not cause double compilation
 	compiledQuery := suite.client.compileQuery(query, variables)
 	suite.NotNil(compiledQuery)
-	suite.Equal(query, compiledQuery.Query)
+	suite.Equal("query GetUser($id: ID!){user(id: $id){id name}}", compiledQuery.Query)
 
 	// Variables should still contain the flags at this point (they're cleaned in Query method)
 	suite.Contains(compiledQuery.Variables, "gqlcache")

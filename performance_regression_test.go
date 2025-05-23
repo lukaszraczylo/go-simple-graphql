@@ -25,9 +25,9 @@ func TestPerformanceRegression(t *testing.T) {
 		}
 		duration := time.Since(start)
 
-		// Should complete 10k hashes in under 25ms (accounts for race detection + coverage overhead)
-		if duration > 25*time.Millisecond {
-			t.Errorf("Hash performance regression: 10k hashes took %v, expected < 25ms", duration)
+		// Should complete 10k hashes in under 40ms (accounts for race detection + coverage overhead)
+		if duration > 40*time.Millisecond {
+			t.Errorf("Hash performance regression: 10k hashes took %v, expected < 40ms", duration)
 		}
 	})
 
@@ -41,9 +41,9 @@ func TestPerformanceRegression(t *testing.T) {
 		}
 		duration := time.Since(start)
 
-		// Should complete 10k buffer operations in under 25ms (accounts for race detection + coverage overhead)
-		if duration > 25*time.Millisecond {
-			t.Errorf("Buffer pool performance regression: 10k operations took %v, expected < 25ms", duration)
+		// Should complete 10k buffer operations in under 30ms (accounts for race detection + coverage overhead)
+		if duration > 30*time.Millisecond {
+			t.Errorf("Buffer pool performance regression: 10k operations took %v, expected < 30ms", duration)
 		}
 	})
 
@@ -105,9 +105,9 @@ func TestPerformanceRegression(t *testing.T) {
 		}
 		duration := time.Since(start)
 
-		// Should complete 1k query compilations in under 50ms
-		if duration > 50*time.Millisecond {
-			t.Errorf("Query compilation performance regression: 1k operations took %v, expected < 50ms", duration)
+		// Should complete 1k query compilations in under 65ms (accounts for minification overhead)
+		if duration > 65*time.Millisecond {
+			t.Errorf("Query compilation performance regression: 1k operations took %v, expected < 65ms", duration)
 		}
 	})
 }

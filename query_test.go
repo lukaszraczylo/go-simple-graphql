@@ -60,8 +60,8 @@ func (suite *Tests) TestBaseClient_compileQuery() {
 				},
 			},
 			wantQ: &Query{
-				Query:     `query { viewer { login } }`,
-				JsonQuery: []byte(`{"query":"query { viewer { login } }"}`),
+				Query:     `query{viewer{login}}`,
+				JsonQuery: []byte(`{"query":"query{viewer{login}}"}`),
 			},
 		},
 		{
@@ -76,12 +76,12 @@ func (suite *Tests) TestBaseClient_compileQuery() {
 				},
 			},
 			wantQ: &Query{
-				Query: `query { viewer { login } }`,
+				Query: `query{viewer{login}}`,
 				Variables: map[string]interface{}{
 					"login": "lukaszraczylo",
 					"first": 10,
 				},
-				JsonQuery: []byte(`{"variables":{"first":10,"login":"lukaszraczylo"},"query":"query { viewer { login } }"}`),
+				JsonQuery: []byte(`{"variables":{"first":10,"login":"lukaszraczylo"},"query":"query{viewer{login}}"}`),
 			},
 		},
 		{
@@ -231,7 +231,7 @@ func (suite *Tests) TestBaseClient_compileQuery_errors() {
 
 		result := b.compileQuery("query { test }", "invalid_variables")
 		assert.NotNil(result)
-		assert.Equal("query { test }", result.Query)
+		assert.Equal("query{test}", result.Query)
 		assert.Nil(result.Variables)
 	})
 }

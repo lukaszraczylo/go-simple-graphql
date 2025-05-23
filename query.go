@@ -2,12 +2,136 @@ package gql
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/goccy/go-json"
 	"github.com/gookit/goutil"
 	"github.com/gookit/goutil/strutil"
 	libpack_logger "github.com/lukaszraczylo/go-simple-graphql/logging"
 )
+
+// minifyGraphQLQuery removes unnecessary whitespace from GraphQL queries while preserving string literals
+func minifyGraphQLQuery(query string) string {
+	if query == "" {
+		return query
+	}
+
+	// Pre-allocate with estimated final size (typically 70-80% of original)
+	var result strings.Builder
+	result.Grow(len(query) * 3 / 4)
+
+	inString := false
+	stringChar := byte(0)       // Track whether we're in single or double quotes
+	queryBytes := []byte(query) // Convert to bytes once for faster access
+	length := len(queryBytes)
+
+	i := 0
+	for i < length {
+		char := queryBytes[i]
+
+		// Handle string literals - preserve everything inside quotes
+		if !inString && (char == '"' || char == '\'') {
+			inString = true
+			stringChar = char
+			result.WriteByte(char)
+			i++
+		} else if inString && char == stringChar {
+			// Check if this quote is escaped (optimized version)
+			escaped := false
+			backslashCount := 0
+			for j := i - 1; j >= 0 && queryBytes[j] == '\\'; j-- {
+				backslashCount++
+			}
+			escaped = backslashCount%2 == 1
+
+			if !escaped {
+				inString = false
+				stringChar = 0
+			}
+			result.WriteByte(char)
+			i++
+		} else if inString {
+			// Inside string literal - preserve everything including whitespace
+			result.WriteByte(char)
+			i++
+		} else if isWhitespace(char) {
+			// Handle whitespace outside strings - optimized version
+			// Skip all consecutive whitespace
+			for i < length && isWhitespace(queryBytes[i]) {
+				i++
+			}
+
+			if i < length && result.Len() > 0 {
+				// Get previous character from result buffer
+				resultStr := result.String()
+				prevChar := resultStr[len(resultStr)-1]
+				nextChar := queryBytes[i]
+
+				// Optimized space preservation logic
+				needsSpace := false
+
+				// Between alphanumeric characters (field names, variables, types)
+				if isAlphaNumeric(prevChar) && isAlphaNumeric(nextChar) {
+					needsSpace = true
+				} else if prevChar == '}' && isAlphaNumeric(nextChar) {
+					// Between closing brace and field name: "} field_name"
+					needsSpace = true
+				} else if prevChar == ':' && (isAlphaNumeric(nextChar) || nextChar == '$' || nextChar == '"' || nextChar == '\'' || nextChar == '{') {
+					// Around colons in type definitions and arguments: "$var: Type", "field: value"
+					needsSpace = true
+				} else if (isAlphaNumeric(prevChar) || prevChar == '_') && nextChar == ':' {
+					needsSpace = true
+				} else if prevChar == ',' && nextChar == '$' {
+					// After commas in argument lists: "arg1: value1, arg2: value2" - only for variables
+					needsSpace = true
+				} else if prevChar == ',' && isAlphaNumeric(nextChar) {
+					// Special case: space after comma when followed by field that has colon
+					// Look ahead to see if this field has a colon (limited lookahead for performance)
+					colonFound := false
+					lookAheadLimit := min(i+15, length) // Reduced lookahead for performance
+					for j := i + 1; j < lookAheadLimit; j++ {
+						if queryBytes[j] == ':' {
+							colonFound = true
+							break
+						}
+						if !isAlphaNumeric(queryBytes[j]) && queryBytes[j] != '_' {
+							break
+						}
+					}
+					if colonFound {
+						needsSpace = true
+					}
+				} else if (prevChar == '!' && isAlphaNumeric(nextChar)) || (isAlphaNumeric(prevChar) && nextChar == '!') {
+					// Around exclamation marks in type definitions: "Type !"
+					needsSpace = true
+				}
+
+				if needsSpace {
+					result.WriteByte(' ')
+				}
+			}
+		} else {
+			// Regular character - just copy it
+			result.WriteByte(char)
+			i++
+		}
+	}
+
+	return result.String()
+}
+
+// isAlphaNumeric checks if a character is alphanumeric or underscore
+func isAlphaNumeric(char byte) bool {
+	return (char >= 'a' && char <= 'z') ||
+		(char >= 'A' && char <= 'Z') ||
+		(char >= '0' && char <= '9') ||
+		char == '_'
+}
+
+// isWhitespace checks if a character is whitespace
+func isWhitespace(char byte) bool {
+	return char == ' ' || char == '\t' || char == '\n' || char == '\r'
+}
 
 func (b *BaseClient) convertToJSON(v any) []byte {
 	// Estimate size based on query structure for better buffer selection
@@ -112,9 +236,31 @@ func (b *BaseClient) compileQuery(queryPartials ...any) *Query {
 		return nil
 	}
 
-	// Construct query object once
+	// Apply query minification if enabled (default: true)
+	finalQuery := query
+	if b.minify_queries {
+		originalSize := len(query)
+		minifiedQuery := minifyGraphQLQuery(query)
+		minifiedSize := len(minifiedQuery)
+
+		// Log the minification results if there was a reduction
+		if originalSize != minifiedSize {
+			b.Logger.Debug(&libpack_logger.LogMessage{
+				Message: "GraphQL query minified",
+				Pairs: map[string]interface{}{
+					"original_size":  originalSize,
+					"minified_size":  minifiedSize,
+					"size_reduction": originalSize - minifiedSize,
+					"reduction_pct":  float64(originalSize-minifiedSize) / float64(originalSize) * 100,
+				},
+			})
+		}
+		finalQuery = minifiedQuery
+	}
+
+	// Construct query object once with final query
 	q := &Query{
-		Query:     query,
+		Query:     finalQuery,
 		Variables: variables,
 	}
 	q.JsonQuery = b.convertToJSON(q)

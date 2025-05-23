@@ -38,6 +38,7 @@ func NewConnection() (b *BaseClient) {
 		retries_enable: envutil.GetBool("GRAPHQL_RETRIES_ENABLE", false),
 		retries_delay:  time.Duration(envutil.GetInt("GRAPHQL_RETRIES_DELAY", 250) * int(time.Millisecond)),
 		retries_number: envutil.GetInt("GRAPHQL_RETRIES_NUMBER", 3),
+		minify_queries: envutil.GetBool("GRAPHQL_MINIFY_QUERIES", true), // Default: enabled for production efficiency
 	}
 	b.client = b.createHttpClient()
 	b.Logger.Debug(&logging.LogMessage{
@@ -62,4 +63,14 @@ func (b *BaseClient) SetOutput(responseType string) {
 
 func (b *BaseClient) SetHTTPClient(client *http.Client) {
 	b.client = client
+}
+
+func (b *BaseClient) SetQueryMinification(enabled bool) {
+	b.minify_queries = enabled
+	b.Logger.Debug(&logging.LogMessage{
+		Message: "GraphQL query minification setting updated",
+		Pairs: map[string]interface{}{
+			"minify_queries": enabled,
+		},
+	})
 }
