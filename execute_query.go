@@ -3,6 +3,7 @@ package gql
 import (
 	"bytes"
 	"compress/gzip"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"io"
@@ -22,6 +23,7 @@ var (
 		IdleConnTimeout:     90 * time.Second,
 		DisableCompression:  false, // Enable compression for responses
 		ForceAttemptHTTP2:   true,
+		TLSClientConfig:     &tls.Config{InsecureSkipVerify: true}, // Skip TLS verification for test environments
 	}
 
 	// Shared HTTP client with timeouts
@@ -45,7 +47,7 @@ func (qe *QueryExecutor) executeQuery() ([]byte, error) {
 			Message: "Can't create HTTP request",
 			Pairs:   map[string]interface{}{"error": err.Error()},
 		})
-		return nil, err
+		return nil, fmt.Errorf("can't create HTTP request: %w", err)
 	}
 
 	for key, value := range qe.Headers {

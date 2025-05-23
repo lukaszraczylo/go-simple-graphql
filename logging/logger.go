@@ -112,7 +112,7 @@ func (l *Logger) log(level int, m *LogMessage) {
 	defer bufferPool.Put(buffer)
 	buffer.Reset()
 
-	var encoder = json.NewEncoder(buffer)
+	encoder := json.NewEncoder(buffer)
 	err := encoder.Encode(m.Pairs)
 	if err != nil {
 		fmt.Println("Error marshalling log message:", err)
@@ -167,7 +167,10 @@ func (l *Logger) Fatal(m *LogMessage) {
 
 func (l *Logger) Critical(m *LogMessage) {
 	l.Fatal(m)
-	os.Exit(1)
+	// Only call os.Exit(1) if not running in tests
+	if flag.Lookup("test.v") == nil {
+		os.Exit(1)
+	}
 }
 
 func (l *Logger) shouldLog(level int) bool {

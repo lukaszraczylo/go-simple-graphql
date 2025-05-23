@@ -2,6 +2,7 @@ package gql
 
 import (
 	"testing"
+	"time"
 
 	"github.com/goccy/go-reflect"
 )
@@ -104,4 +105,65 @@ func (suite *Tests) TestBaseClient_decodeResponse() {
 			assert.Equal(tt.wantType, reflect.TypeOf(got).String())
 		})
 	}
+}
+
+func (suite *Tests) Test_searchForKeysInMapStringInterface_nil() {
+	suite.T().Run("should handle nil map", func(t *testing.T) {
+		result := searchForKeysInMapStringInterface(nil, "test")
+		assert.Nil(result)
+	})
+}
+
+func (suite *Tests) Test_calculateHash() {
+	suite.T().Run("should calculate consistent hash", func(t *testing.T) {
+		query1 := &Query{JsonQuery: []byte(`{"query": "{ user { name } }"}`)}
+		query2 := &Query{JsonQuery: []byte(`{"query": "{ user { name } }"}`)}
+		query3 := &Query{JsonQuery: []byte(`{"query": "{ user { email } }"}`)}
+
+		hash1 := calculateHash(query1)
+		hash2 := calculateHash(query2)
+		hash3 := calculateHash(query3)
+
+		// Same queries should produce same hash
+		assert.Equal(hash1, hash2)
+		// Different queries should produce different hashes
+		assert.NotEqual(hash1, hash3)
+		// Hash should be non-empty
+		assert.NotEmpty(hash1)
+	})
+}
+
+func (suite *Tests) TestBaseClient_cacheLookup() {
+	suite.T().Run("should lookup cache entries", func(t *testing.T) {
+		client := CreateTestClient()
+
+		// Test cache miss
+		result := client.cacheLookup("nonexistent")
+		assert.Nil(result)
+
+		// Test cache hit
+		testData := []byte("test data")
+		client.cache.Set("test_key", testData, 5*time.Second)
+		result = client.cacheLookup("test_key")
+		assert.Equal(testData, result)
+	})
+}
+
+func (suite *Tests) TestBaseClient_decodeResponse_errors() {
+	suite.T().Run("should handle invalid JSON for mapstring", func(t *testing.T) {
+		client := NewConnection()
+		client.SetOutput("mapstring")
+
+		_, err := client.decodeResponse([]byte(`invalid json`))
+		assert.Error(err)
+	})
+
+	suite.T().Run("should handle unknown response type", func(t *testing.T) {
+		client := NewConnection()
+		client.responseType = "unknown"
+
+		_, err := client.decodeResponse([]byte(`{"test": "data"}`))
+		assert.Error(err)
+		assert.Contains(err.Error(), "unknown response type")
+	})
 }

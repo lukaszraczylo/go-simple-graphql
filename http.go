@@ -63,6 +63,7 @@ func (b *BaseClient) createHttpClient() (http_client *http.Client) {
 		b.Logger.Critical(&libpack_logger.LogMessage{
 			Message: "Invalid endpoint - neither http or https",
 		})
+		return nil
 	}
 	return http_client
 }

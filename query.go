@@ -126,7 +126,7 @@ func (b *BaseClient) Query(query string, variables map[string]interface{}, heade
 
 	// Compile query once with cleaned variables
 	compiledQuery := b.compileQuery(query, cleanedVariables)
-	if compiledQuery.JsonQuery == nil {
+	if compiledQuery == nil || compiledQuery.JsonQuery == nil {
 		b.Logger.Error(&libpack_logger.LogMessage{
 			Message: "Can't compile query",
 			Pairs:   map[string]interface{}{"error": "query is empty"},

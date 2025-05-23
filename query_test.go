@@ -182,3 +182,248 @@ func (suite *Tests) TestBaseClient_Query() {
 		})
 	}
 }
+
+func (suite *Tests) TestBaseClient_convertToJSON_errors() {
+	suite.T().Run("should handle JSON encoding errors", func(t *testing.T) {
+		b := NewConnection()
+
+		// Test with a value that can't be JSON encoded (function)
+		result := b.convertToJSON(func() {})
+		assert.Nil(result)
+	})
+
+	suite.T().Run("should handle Query type with variables", func(t *testing.T) {
+		b := NewConnection()
+
+		query := &Query{
+			Query: "query { test }",
+			Variables: map[string]interface{}{
+				"var1": "value1",
+				"var2": 123,
+			},
+		}
+
+		result := b.convertToJSON(query)
+		assert.NotNil(result)
+		assert.Contains(string(result), "query { test }")
+		assert.Contains(string(result), "var1")
+		assert.Contains(string(result), "value1")
+	})
+}
+
+func (suite *Tests) TestBaseClient_compileQuery_errors() {
+	suite.T().Run("should handle empty query", func(t *testing.T) {
+		b := NewConnection()
+
+		result := b.compileQuery("")
+		assert.Nil(result)
+	})
+
+	suite.T().Run("should handle no arguments", func(t *testing.T) {
+		b := NewConnection()
+
+		result := b.compileQuery()
+		assert.Nil(result)
+	})
+
+	suite.T().Run("should handle invalid variable type", func(t *testing.T) {
+		b := NewConnection()
+
+		result := b.compileQuery("query { test }", "invalid_variables")
+		assert.NotNil(result)
+		assert.Equal("query { test }", result.Query)
+		assert.Nil(result.Variables)
+	})
+}
+
+func (suite *Tests) Test_processFlags() {
+	tests := []struct {
+		name            string
+		variables       map[string]interface{}
+		headers         map[string]interface{}
+		wantCache       bool
+		wantRetries     bool
+		wantCleanedVars map[string]interface{}
+	}{
+		{
+			name:      "cache enabled in headers",
+			variables: nil,
+			headers: map[string]interface{}{
+				"gqlcache": true,
+			},
+			wantCache:       true,
+			wantRetries:     false,
+			wantCleanedVars: nil,
+		},
+		{
+			name:      "retries enabled in headers",
+			variables: nil,
+			headers: map[string]interface{}{
+				"gqlretries": true,
+			},
+			wantCache:       false,
+			wantRetries:     true,
+			wantCleanedVars: nil,
+		},
+		{
+			name: "cache enabled in variables",
+			variables: map[string]interface{}{
+				"gqlcache": true,
+				"test":     "value",
+			},
+			headers:     nil,
+			wantCache:   true,
+			wantRetries: false,
+			wantCleanedVars: map[string]interface{}{
+				"test": "value",
+			},
+		},
+		{
+			name: "retries enabled in variables",
+			variables: map[string]interface{}{
+				"gqlretries": true,
+				"test":       "value",
+			},
+			headers:     nil,
+			wantCache:   false,
+			wantRetries: true,
+			wantCleanedVars: map[string]interface{}{
+				"test": "value",
+			},
+		},
+		{
+			name: "both flags in variables",
+			variables: map[string]interface{}{
+				"gqlcache":   true,
+				"gqlretries": false,
+				"test":       "value",
+			},
+			headers:     nil,
+			wantCache:   true,
+			wantRetries: false,
+			wantCleanedVars: map[string]interface{}{
+				"test": "value",
+			},
+		},
+		{
+			name: "flags in both headers and variables",
+			variables: map[string]interface{}{
+				"gqlcache": false,
+				"test":     "value",
+			},
+			headers: map[string]interface{}{
+				"gqlretries": true,
+			},
+			wantCache:   false,
+			wantRetries: true,
+			wantCleanedVars: map[string]interface{}{
+				"test": "value",
+			},
+		},
+		{
+			name:            "no flags",
+			variables:       map[string]interface{}{"test": "value"},
+			headers:         nil,
+			wantCache:       false,
+			wantRetries:     false,
+			wantCleanedVars: map[string]interface{}{"test": "value"},
+		},
+	}
+
+	for _, tt := range tests {
+		suite.T().Run(tt.name, func(t *testing.T) {
+			gotCache, gotRetries, gotCleanedVars := processFlags(tt.variables, tt.headers)
+			assert.Equal(tt.wantCache, gotCache)
+			assert.Equal(tt.wantRetries, gotRetries)
+			assert.Equal(tt.wantCleanedVars, gotCleanedVars)
+		})
+	}
+}
+
+func (suite *Tests) TestBaseClient_Query_caching() {
+	suite.T().Run("should use cache for query operations", func(t *testing.T) {
+		b := NewConnection()
+		b.SetEndpoint(mockServer.URL)
+		b.SetHTTPClient(mockServer.Client())
+
+		query := "query { viewer { login } }"
+		variables := map[string]interface{}{
+			"gqlcache": true,
+		}
+
+		// First call should hit the server
+		result1, err := b.Query(query, variables, nil)
+		assert.NoError(err)
+		assert.NotNil(result1)
+
+		// Second call should use cache
+		result2, err := b.Query(query, variables, nil)
+		assert.NoError(err)
+		assert.Equal(result1, result2)
+	})
+
+	suite.T().Run("should not cache mutations", func(t *testing.T) {
+		b := NewConnection()
+		b.SetEndpoint(mockServer.URL)
+		b.SetHTTPClient(mockServer.Client())
+
+		mutation := "mutation { updateUser { id } }"
+		variables := map[string]interface{}{
+			"gqlcache": true,
+		}
+
+		// Mutations should not be cached even with cache flag
+		_, err := b.Query(mutation, variables, nil)
+		assert.Error(err) // Mock server doesn't handle mutations
+	})
+}
+
+func (suite *Tests) TestBaseClient_Query_retries() {
+	suite.T().Run("should handle retries flag", func(t *testing.T) {
+		b := NewConnection()
+		b.SetEndpoint(mockServer.URL)
+		b.SetHTTPClient(mockServer.Client())
+
+		query := "query { viewer { login } }"
+		variables := map[string]interface{}{
+			"gqlretries": true,
+		}
+
+		result, err := b.Query(query, variables, nil)
+		assert.NoError(err)
+		assert.NotNil(result)
+	})
+}
+
+func (suite *Tests) TestBaseClient_Query_globalCache() {
+	suite.T().Run("should respect global cache setting", func(t *testing.T) {
+		b := NewConnection()
+		b.SetEndpoint(mockServer.URL)
+		b.SetHTTPClient(mockServer.Client())
+		b.cache_global = true
+
+		query := "query { viewer { login } }"
+
+		// Should use cache even without explicit flag
+		result1, err := b.Query(query, nil, nil)
+		assert.NoError(err)
+		assert.NotNil(result1)
+
+		result2, err := b.Query(query, nil, nil)
+		assert.NoError(err)
+		assert.Equal(result1, result2)
+	})
+}
+
+func (suite *Tests) TestBaseClient_Query_emptyQuery() {
+	suite.T().Run("should handle empty query", func(t *testing.T) {
+		b := NewConnection()
+		b.SetEndpoint(mockServer.URL)
+		b.SetHTTPClient(mockServer.Client())
+
+		result, err := b.Query("", nil, nil)
+		assert.Error(err)
+		assert.Nil(result)
+		assert.Contains(err.Error(), "can't compile query")
+	})
+}
