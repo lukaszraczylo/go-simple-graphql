@@ -24,7 +24,7 @@ type BaseClient struct {
 type Query struct {
 	Variables map[string]interface{} `json:"variables,omitempty"`
 	Query     string                 `json:"query,omitempty"`
-	JsonQuery []byte                 `json:"jsonQuery,omitempty"`
+	JsonQuery []byte                 `json:"-"` // Exclude from JSON serialization to prevent nested encoding
 }
 
 type QueryExecutor struct {
