@@ -19,7 +19,7 @@ func (b *BaseClient) createHttpClient() (http_client *http.Client) {
 		IdleConnTimeout:       30 * time.Second, // Increased for better reuse
 		ResponseHeaderTimeout: 10 * time.Second, // Reduced for faster timeouts
 		DisableKeepAlives:     false,
-		DisableCompression:    false,
+		DisableCompression:    true, // Disable automatic request compression to prevent "trailing garbage" errors
 		WriteBufferSize:       4096, // Optimize buffer size
 		ReadBufferSize:        4096, // Optimize buffer size
 	}
@@ -42,11 +42,12 @@ func (b *BaseClient) createHttpClient() (http_client *http.Client) {
 			tlsClientConfig.InsecureSkipVerify = true
 		}
 		http2Transport := &http2.Transport{
-			AllowHTTP:        true,
-			TLSClientConfig:  tlsClientConfig,
-			ReadIdleTimeout:  30 * time.Second, // Increased for better reuse
-			PingTimeout:      10 * time.Second, // Reduced for faster detection
-			WriteByteTimeout: 10 * time.Second, // Add write timeout
+			AllowHTTP:          true,
+			TLSClientConfig:    tlsClientConfig,
+			ReadIdleTimeout:    30 * time.Second, // Increased for better reuse
+			PingTimeout:        10 * time.Second, // Reduced for faster detection
+			WriteByteTimeout:   10 * time.Second, // Add write timeout
+			DisableCompression: true,             // Disable automatic request compression to prevent "trailing garbage" errors
 		}
 		http_client = &http.Client{
 			Timeout:   30 * time.Second, // Increased for better reliability

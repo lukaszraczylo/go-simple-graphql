@@ -29,7 +29,7 @@ var (
 		MaxIdleConns:        100,
 		MaxIdleConnsPerHost: 100,
 		IdleConnTimeout:     90 * time.Second,
-		DisableCompression:  false, // Enable automatic compression for consistent handling
+		DisableCompression:  true, // Disable automatic request compression to prevent "trailing garbage" errors
 		ForceAttemptHTTP2:   true,
 		TLSClientConfig:     &tls.Config{InsecureSkipVerify: true}, // Skip TLS verification for test environments
 	}
@@ -66,10 +66,10 @@ func (qe *QueryExecutor) executeQuery() ([]byte, error) {
 		httpRequest.Header.Set("Content-Type", "application/json")
 	}
 
-	// Set Accept-Encoding header to request gzip compression
-	if httpRequest.Header.Get("Accept-Encoding") == "" {
-		httpRequest.Header.Set("Accept-Encoding", "gzip")
-	}
+	// Explicitly remove Accept-Encoding header to prevent automatic request compression
+	// Response decompression is still handled intelligently based on Content-Encoding header
+	// and gzip magic bytes detection in the response processing logic below
+	httpRequest.Header.Set("Accept-Encoding", "identity")
 
 	retriesMax := 1
 	if qe.Retries {
@@ -83,9 +83,19 @@ func (qe *QueryExecutor) executeQuery() ([]byte, error) {
 			buf.Reset()
 			buf.Write(qe.Query)
 
-			// Set the body of the request
+			// Set the body of the request (plain JSON, no compression)
 			httpRequest.Body = io.NopCloser(bytes.NewReader(buf.Bytes()))
 			httpRequest.ContentLength = int64(buf.Len())
+
+			// Debug log to confirm request is sent as plain JSON
+			qe.Logger.Debug(&libpack_logger.LogMessage{
+				Message: "Sending GraphQL request as plain JSON",
+				Pairs: map[string]interface{}{
+					"content_length":       httpRequest.ContentLength,
+					"content_type":         httpRequest.Header.Get("Content-Type"),
+					"compression_disabled": true,
+				},
+			})
 
 			// Use default client if custom client is not set
 			client := qe.client

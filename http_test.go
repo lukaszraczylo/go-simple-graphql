@@ -27,7 +27,7 @@ func (suite *Tests) TestBaseClient_createHttpClient() {
 		assert.Equal(30*time.Second, transport.IdleConnTimeout)
 		assert.Equal(10*time.Second, transport.ResponseHeaderTimeout)
 		assert.False(transport.DisableKeepAlives)
-		assert.False(transport.DisableCompression)
+		assert.True(transport.DisableCompression) // Request compression disabled to prevent "trailing garbage" errors
 		assert.Equal(4096, transport.WriteBufferSize)
 		assert.Equal(4096, transport.ReadBufferSize)
 	})
@@ -106,7 +106,7 @@ func (suite *Tests) TestBaseClient_createHttpClient_transportSettings() {
 		assert.Equal(30*time.Second, transport.IdleConnTimeout)
 		assert.Equal(10*time.Second, transport.ResponseHeaderTimeout)
 		assert.False(transport.DisableKeepAlives)
-		assert.False(transport.DisableCompression)
+		assert.True(transport.DisableCompression) // Request compression disabled to prevent "trailing garbage" errors
 		assert.Equal(4096, transport.WriteBufferSize)
 		assert.Equal(4096, transport.ReadBufferSize)
 	})
