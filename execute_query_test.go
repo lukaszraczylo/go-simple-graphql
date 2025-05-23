@@ -306,3 +306,289 @@ func (suite *Tests) TestQueryExecutor_executeQuery_requestCreationError() {
 		assert.Contains(err.Error(), "can't create HTTP request")
 	})
 }
+
+func (suite *Tests) TestQueryExecutor_executeQuery_gzipTrailingGarbage() {
+	suite.T().Run("should handle gzip trailing garbage error with fallback", func(t *testing.T) {
+		// Create a test server that returns malformed gzip data (with trailing garbage)
+		malformedGzipServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			w.Header().Set("Content-Encoding", "gzip")
+
+			// Create valid gzip data first
+			var buf bytes.Buffer
+			gzipWriter := gzip.NewWriter(&buf)
+			gzipWriter.Write([]byte(`{"data":{"viewer":{"login":"testuser"}}}`))
+			gzipWriter.Close()
+
+			// Add trailing garbage to simulate the error
+			validGzipData := buf.Bytes()
+			malformedData := append(validGzipData, []byte("trailing garbage data")...)
+
+			w.WriteHeader(http.StatusOK)
+			w.Write(malformedData)
+		}))
+		defer malformedGzipServer.Close()
+
+		client := CreateTestClient()
+
+		qe := &QueryExecutor{
+			BaseClient: client,
+			Query:      []byte(`{"query":"query { viewer { login } }"}`),
+			Headers:    map[string]interface{}{"Content-Type": "application/json"},
+			CacheKey:   "no-cache",
+			Retries:    false,
+		}
+		qe.endpoint = malformedGzipServer.URL
+		qe.client = malformedGzipServer.Client()
+		qe.cache = client.cache
+
+		// This should fail with gzip decompression but fallback to treating as uncompressed
+		result, err := qe.executeQuery()
+		// The fallback should fail because the raw data (including gzip headers) is not valid JSON
+		assert.Error(err)
+		assert.Nil(result)
+		assert.Contains(err.Error(), "error unmarshalling HTTP response")
+	})
+
+	suite.T().Run("should handle gzip with valid JSON fallback", func(t *testing.T) {
+		// Create a test server that claims gzip but returns plain JSON
+		fakeGzipServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			w.Header().Set("Content-Encoding", "gzip") // Claims gzip but sends plain JSON
+
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`{"data":{"viewer":{"login":"fallbackuser"}}}`))
+		}))
+		defer fakeGzipServer.Close()
+
+		client := CreateTestClient()
+
+		qe := &QueryExecutor{
+			BaseClient: client,
+			Query:      []byte(`{"query":"query { viewer { login } }"}`),
+			Headers:    map[string]interface{}{"Content-Type": "application/json"},
+			CacheKey:   "no-cache",
+			Retries:    false,
+		}
+		qe.endpoint = fakeGzipServer.URL
+		qe.client = fakeGzipServer.Client()
+		qe.cache = client.cache
+
+		// Should fail gzip decompression but succeed with fallback to plain JSON
+		result, err := qe.executeQuery()
+		assert.NoError(err)
+		assert.NotNil(result)
+		assert.Contains(string(result), "fallbackuser")
+	})
+
+	suite.T().Run("should handle corrupted gzip header", func(t *testing.T) {
+		// Create a test server that returns corrupted gzip data
+		corruptedGzipServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			w.Header().Set("Content-Encoding", "gzip")
+
+			// Send corrupted gzip data (invalid magic number)
+			corruptedData := []byte{0x1f, 0x8c, 0x08, 0x00} // Invalid gzip header
+			corruptedData = append(corruptedData, []byte(`{"data":{"viewer":{"login":"corruptuser"}}}`)...)
+
+			w.WriteHeader(http.StatusOK)
+			w.Write(corruptedData)
+		}))
+		defer corruptedGzipServer.Close()
+
+		client := CreateTestClient()
+
+		qe := &QueryExecutor{
+			BaseClient: client,
+			Query:      []byte(`{"query":"query { viewer { login } }"}`),
+			Headers:    map[string]interface{}{"Content-Type": "application/json"},
+			CacheKey:   "no-cache",
+			Retries:    false,
+		}
+		qe.endpoint = corruptedGzipServer.URL
+		qe.client = corruptedGzipServer.Client()
+		qe.cache = client.cache
+
+		// Should fail gzip reader creation and fallback to raw data parsing
+		result, err := qe.executeQuery()
+		// This will likely fail because the raw data includes corrupted gzip headers
+		assert.Error(err)
+		assert.Nil(result)
+	})
+
+	suite.T().Run("should handle empty gzip response", func(t *testing.T) {
+		// Create a test server that returns empty gzip data
+		emptyGzipServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			w.Header().Set("Content-Encoding", "gzip")
+
+			w.WriteHeader(http.StatusOK)
+			// Send empty response
+		}))
+		defer emptyGzipServer.Close()
+
+		client := CreateTestClient()
+
+		qe := &QueryExecutor{
+			BaseClient: client,
+			Query:      []byte(`{"query":"query { viewer { login } }"}`),
+			Headers:    map[string]interface{}{"Content-Type": "application/json"},
+			CacheKey:   "no-cache",
+			Retries:    false,
+		}
+		qe.endpoint = emptyGzipServer.URL
+		qe.client = emptyGzipServer.Client()
+		qe.cache = client.cache
+
+		result, err := qe.executeQuery()
+		assert.Error(err)
+		assert.Nil(result)
+		assert.Contains(err.Error(), "empty response data")
+	})
+
+	suite.T().Run("should handle partial gzip data", func(t *testing.T) {
+		// Create a test server that returns partial/truncated gzip data
+		partialGzipServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			w.Header().Set("Content-Encoding", "gzip")
+
+			// Create valid gzip data but truncate it
+			var buf bytes.Buffer
+			gzipWriter := gzip.NewWriter(&buf)
+			gzipWriter.Write([]byte(`{"data":{"viewer":{"login":"partialuser"}}}`))
+			gzipWriter.Close()
+
+			// Send only partial gzip data (truncated)
+			fullData := buf.Bytes()
+			partialData := fullData[:len(fullData)/2] // Send only half
+
+			w.WriteHeader(http.StatusOK)
+			w.Write(partialData)
+		}))
+		defer partialGzipServer.Close()
+
+		client := CreateTestClient()
+
+		qe := &QueryExecutor{
+			BaseClient: client,
+			Query:      []byte(`{"query":"query { viewer { login } }"}`),
+			Headers:    map[string]interface{}{"Content-Type": "application/json"},
+			CacheKey:   "no-cache",
+			Retries:    false,
+		}
+		qe.endpoint = partialGzipServer.URL
+		qe.client = partialGzipServer.Client()
+		qe.cache = client.cache
+
+		result, err := qe.executeQuery()
+		// Should fail gzip decompression and fallback, but raw data won't be valid JSON
+		assert.Error(err)
+		assert.Nil(result)
+	})
+
+	suite.T().Run("should successfully decompress valid gzip", func(t *testing.T) {
+		// Ensure our fix doesn't break valid gzip handling
+		validGzipServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			w.Header().Set("Content-Encoding", "gzip")
+
+			var buf bytes.Buffer
+			gzipWriter := gzip.NewWriter(&buf)
+			gzipWriter.Write([]byte(`{"data":{"viewer":{"login":"validgzipuser"}}}`))
+			gzipWriter.Close()
+
+			w.WriteHeader(http.StatusOK)
+			w.Write(buf.Bytes())
+		}))
+		defer validGzipServer.Close()
+
+		client := CreateTestClient()
+
+		qe := &QueryExecutor{
+			BaseClient: client,
+			Query:      []byte(`{"query":"query { viewer { login } }"}`),
+			Headers:    map[string]interface{}{"Content-Type": "application/json"},
+			CacheKey:   "test-valid-gzip",
+			Retries:    false,
+		}
+		qe.endpoint = validGzipServer.URL
+		qe.client = validGzipServer.Client()
+		qe.cache = client.cache
+		qe.CacheTTL = 5 * time.Second
+
+		result, err := qe.executeQuery()
+		assert.NoError(err)
+		assert.NotNil(result)
+		assert.Contains(string(result), "validgzipuser")
+	})
+}
+
+func (suite *Tests) TestQueryExecutor_executeQuery_gzipErrorScenarios() {
+	suite.T().Run("should handle gzip reader creation failure", func(t *testing.T) {
+		// Test server that sends invalid gzip magic number
+		invalidMagicServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			w.Header().Set("Content-Encoding", "gzip")
+
+			// Send data with wrong magic number (not gzip)
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`{"data":{"viewer":{"login":"magicuser"}}}`))
+		}))
+		defer invalidMagicServer.Close()
+
+		client := CreateTestClient()
+
+		qe := &QueryExecutor{
+			BaseClient: client,
+			Query:      []byte(`{"query":"query { viewer { login } }"}`),
+			Headers:    map[string]interface{}{"Content-Type": "application/json"},
+			CacheKey:   "no-cache",
+			Retries:    false,
+		}
+		qe.endpoint = invalidMagicServer.URL
+		qe.client = invalidMagicServer.Client()
+		qe.cache = client.cache
+
+		result, err := qe.executeQuery()
+		// Should fail gzip reader creation, fallback to raw JSON parsing, and succeed
+		assert.NoError(err)
+		assert.NotNil(result)
+		assert.Contains(string(result), "magicuser")
+	})
+
+	suite.T().Run("should handle gzip decompression with unexpected EOF", func(t *testing.T) {
+		// Create server that sends truncated gzip stream
+		eofGzipServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			w.Header().Set("Content-Encoding", "gzip")
+
+			// Create a proper gzip header but truncate the data
+			gzipHeader := []byte{0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xff}
+			// Add some compressed data but not complete
+			incompleteData := []byte{0x4a, 0x49, 0x2c, 0x49, 0x54, 0xb2, 0x52, 0x50}
+
+			w.WriteHeader(http.StatusOK)
+			w.Write(append(gzipHeader, incompleteData...))
+		}))
+		defer eofGzipServer.Close()
+
+		client := CreateTestClient()
+
+		qe := &QueryExecutor{
+			BaseClient: client,
+			Query:      []byte(`{"query":"query { viewer { login } }"}`),
+			Headers:    map[string]interface{}{"Content-Type": "application/json"},
+			CacheKey:   "no-cache",
+			Retries:    false,
+		}
+		qe.endpoint = eofGzipServer.URL
+		qe.client = eofGzipServer.Client()
+		qe.cache = client.cache
+
+		result, err := qe.executeQuery()
+		// Should fail gzip decompression and fallback, but raw data won't be valid JSON
+		assert.Error(err)
+		assert.Nil(result)
+		assert.Contains(err.Error(), "error unmarshalling HTTP response")
+	})
+}

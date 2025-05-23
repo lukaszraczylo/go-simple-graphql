@@ -21,7 +21,7 @@ var (
 		MaxIdleConns:        100,
 		MaxIdleConnsPerHost: 100,
 		IdleConnTimeout:     90 * time.Second,
-		DisableCompression:  false, // Enable compression for responses
+		DisableCompression:  true, // Disable automatic compression to handle gzip manually
 		ForceAttemptHTTP2:   true,
 		TLSClientConfig:     &tls.Config{InsecureSkipVerify: true}, // Skip TLS verification for test environments
 	}
@@ -58,6 +58,11 @@ func (qe *QueryExecutor) executeQuery() ([]byte, error) {
 		httpRequest.Header.Set("Content-Type", "application/json")
 	}
 
+	// Set Accept-Encoding header to request gzip compression
+	if httpRequest.Header.Get("Accept-Encoding") == "" {
+		httpRequest.Header.Set("Accept-Encoding", "gzip")
+	}
+
 	retriesMax := 1
 	if qe.Retries {
 		retriesMax = qe.retries_number
@@ -92,32 +97,115 @@ func (qe *QueryExecutor) executeQuery() ([]byte, error) {
 				return fmt.Errorf("HTTP error - status code: %s for %s", httpResponse.Status, httpRequest.URL)
 			}
 
-			var reader io.Reader
+			// Log Content-Encoding header for debugging
 			encoding := httpResponse.Header.Get("Content-Encoding")
-			if encoding == "gzip" {
-				gzipReader, err := gzip.NewReader(httpResponse.Body)
-				if err != nil {
-					return fmt.Errorf("error creating gzip reader: %w", err)
-				}
-				defer gzipReader.Close()
-				reader = gzipReader
-			} else {
-				reader = httpResponse.Body
+			qe.Logger.Debug(&libpack_logger.LogMessage{
+				Message: "Processing response",
+				Pairs: map[string]interface{}{
+					"content_encoding": encoding,
+					"content_type":     httpResponse.Header.Get("Content-Type"),
+				},
+			})
+
+			// First, read the entire response body into a buffer
+			rawBuf := bufferPool.Get().(*bytes.Buffer)
+			rawBuf.Reset()
+			defer bufferPool.Put(rawBuf)
+
+			_, err = io.Copy(rawBuf, httpResponse.Body)
+			if err != nil {
+				return fmt.Errorf("error reading HTTP response body: %w", err)
 			}
 
-			// Use buffer pool for reading response
+			rawData := rawBuf.Bytes()
+			qe.Logger.Debug(&libpack_logger.LogMessage{
+				Message: "Read raw response data",
+				Pairs: map[string]interface{}{
+					"response_size": len(rawData),
+				},
+			})
+
+			// Use buffer pool for final data processing
 			respBuf := bufferPool.Get().(*bytes.Buffer)
 			respBuf.Reset()
 			defer bufferPool.Put(respBuf)
 
-			_, err = io.Copy(respBuf, reader)
-			if err != nil {
-				return fmt.Errorf("error reading HTTP response: %w", err)
+			var finalData []byte
+
+			// Handle gzip decompression with fallback
+			if encoding == "gzip" {
+				// Try to create gzip reader from raw data
+				gzipReader, err := gzip.NewReader(bytes.NewReader(rawData))
+				if err != nil {
+					qe.Logger.Warning(&libpack_logger.LogMessage{
+						Message: "Failed to create gzip reader, falling back to uncompressed parsing",
+						Pairs:   map[string]interface{}{"gzip_error": err.Error()},
+					})
+					// Fallback: treat raw data as uncompressed
+					finalData = rawData
+				} else {
+					// Successfully created gzip reader, now try to decompress
+					defer gzipReader.Close()
+
+					_, copyErr := io.Copy(respBuf, gzipReader)
+					if copyErr != nil {
+						// Gzip decompression failed, try fallback
+						qe.Logger.Warning(&libpack_logger.LogMessage{
+							Message: "Gzip decompression failed, falling back to uncompressed parsing",
+							Pairs: map[string]interface{}{
+								"copy_error": copyErr,
+								"raw_size":   len(rawData),
+							},
+						})
+						// Fallback: treat raw data as uncompressed
+						finalData = rawData
+					} else {
+						// Successful decompression
+						finalData = respBuf.Bytes()
+						qe.Logger.Debug(&libpack_logger.LogMessage{
+							Message: "Successfully decompressed gzip response",
+							Pairs: map[string]interface{}{
+								"compressed_size":   len(rawData),
+								"decompressed_size": len(finalData),
+							},
+						})
+					}
+				}
+			} else {
+				// No compression, use raw data directly
+				finalData = rawData
 			}
 
-			// Unmarshal response directly from buffer
-			err = json.Unmarshal(respBuf.Bytes(), &queryResult)
+			// Validate that we have data before attempting JSON unmarshaling
+			if len(finalData) == 0 {
+				return fmt.Errorf("empty response data after processing")
+			}
+
+			// Log the first few bytes for debugging (truncated for safety)
+			debugData := finalData
+			if len(debugData) > 100 {
+				debugData = debugData[:100]
+			}
+			qe.Logger.Debug(&libpack_logger.LogMessage{
+				Message: "Attempting JSON unmarshaling",
+				Pairs: map[string]interface{}{
+					"data_size":   len(finalData),
+					"data_sample": string(debugData),
+				},
+			})
+
+			// Unmarshal the final processed data
+			err = json.Unmarshal(finalData, &queryResult)
 			if err != nil {
+				qe.Logger.Error(&libpack_logger.LogMessage{
+					Message: "JSON unmarshaling failed",
+					Pairs: map[string]interface{}{
+						"error":       err.Error(),
+						"data_size":   len(finalData),
+						"data_sample": string(debugData),
+						"encoding":    encoding,
+					},
+				})
 				return fmt.Errorf("error unmarshalling HTTP response: %w", err)
 			}
 
