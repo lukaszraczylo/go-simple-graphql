@@ -1,6 +1,7 @@
 package gql
 
 import (
+	"os"
 	"sync"
 	"time"
 
@@ -26,7 +27,25 @@ func GetTestCache() *cache.Cache {
 func GetTestLogger() *logging.Logger {
 	if testLogger == nil {
 		testLogger = logging.New()
-		testLogger.SetMinLogLevel(logging.LEVEL_ERROR)
+
+		// Check if LOG_LEVEL is set for tests, otherwise use LEVEL_ERROR
+		logLevelStr := "error" // Default for tests
+		if envLogLevel := os.Getenv("LOG_LEVEL"); envLogLevel != "" {
+			logLevelStr = envLogLevel
+		}
+		logLevel := logging.GetLogLevel(logLevelStr)
+		testLogger.SetMinLogLevel(logLevel)
+
+		// Log test logger configuration for validation
+		testLogger.Info(&logging.LogMessage{
+			Message: "Test logger initialized",
+			Pairs: map[string]interface{}{
+				"LOG_LEVEL_env_var":   os.Getenv("LOG_LEVEL"),
+				"effective_log_level": logLevelStr,
+				"parsed_log_level":    logLevel,
+				"level_name":          logging.LevelNames[logLevel],
+			},
+		})
 	}
 	return testLogger
 }
