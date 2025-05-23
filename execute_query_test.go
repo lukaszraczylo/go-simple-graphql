@@ -342,12 +342,12 @@ func (suite *Tests) TestQueryExecutor_executeQuery_gzipTrailingGarbage() {
 		qe.client = malformedGzipServer.Client()
 		qe.cache = client.cache
 
-		// This should fail with gzip decompression but fallback to treating as uncompressed
+		// This should fail with gzip decompression error
 		result, err := qe.executeQuery()
-		// The fallback should fail because the raw data (including gzip headers) is not valid JSON
+		// Should get proper gzip decompression error instead of trying to parse raw gzip as JSON
 		assert.Error(err)
 		assert.Nil(result)
-		assert.Contains(err.Error(), "error unmarshalling HTTP response")
+		assert.Contains(err.Error(), "gzip decompression failed")
 	})
 
 	suite.T().Run("should handle gzip with valid JSON fallback", func(t *testing.T) {
@@ -443,7 +443,7 @@ func (suite *Tests) TestQueryExecutor_executeQuery_gzipTrailingGarbage() {
 		result, err := qe.executeQuery()
 		assert.Error(err)
 		assert.Nil(result)
-		assert.Contains(err.Error(), "empty response data")
+		assert.Contains(err.Error(), "content encoding mismatch")
 	})
 
 	suite.T().Run("should handle partial gzip data", func(t *testing.T) {
@@ -586,10 +586,10 @@ func (suite *Tests) TestQueryExecutor_executeQuery_gzipErrorScenarios() {
 		qe.cache = client.cache
 
 		result, err := qe.executeQuery()
-		// Should fail gzip decompression and fallback, but raw data won't be valid JSON
+		// Should fail gzip decompression with proper error message
 		assert.Error(err)
 		assert.Nil(result)
-		assert.Contains(err.Error(), "error unmarshalling HTTP response")
+		assert.Contains(err.Error(), "gzip decompression failed")
 	})
 }
 
@@ -811,7 +811,7 @@ func (suite *Tests) TestQueryExecutor_executeQuery_intelligentGzipDetection() {
 		result, err := qe.executeQuery()
 		assert.Error(err)
 		assert.Nil(result)
-		assert.Contains(err.Error(), "empty response data")
+		assert.Contains(err.Error(), "content encoding mismatch")
 	})
 
 	suite.T().Run("should handle response with only gzip magic bytes but no valid gzip data", func(t *testing.T) {
@@ -843,10 +843,10 @@ func (suite *Tests) TestQueryExecutor_executeQuery_intelligentGzipDetection() {
 		qe.cache = client.cache
 
 		result, err := qe.executeQuery()
-		// Should detect gzip magic bytes, fail decompression, fallback to raw data, then fail JSON parsing
+		// Should detect gzip magic bytes, fail gzip reader creation with proper error
 		assert.Error(err)
 		assert.Nil(result)
-		assert.Contains(err.Error(), "error unmarshalling HTTP response")
+		assert.Contains(err.Error(), "gzip reader creation failed")
 	})
 }
 

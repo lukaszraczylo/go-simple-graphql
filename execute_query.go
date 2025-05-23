@@ -29,7 +29,7 @@ var (
 		MaxIdleConns:        100,
 		MaxIdleConnsPerHost: 100,
 		IdleConnTimeout:     90 * time.Second,
-		DisableCompression:  true, // Disable automatic compression to handle gzip manually
+		DisableCompression:  false, // Enable automatic compression for consistent handling
 		ForceAttemptHTTP2:   true,
 		TLSClientConfig:     &tls.Config{InsecureSkipVerify: true}, // Skip TLS verification for test environments
 	}
@@ -168,36 +168,35 @@ func (qe *QueryExecutor) executeQuery() ([]byte, error) {
 				detectionMethod = "gzip_magic_bytes"
 				gzipReader, err := gzip.NewReader(bytes.NewReader(rawData))
 				if err != nil {
-					qe.Logger.Warning(&libpack_logger.LogMessage{
-						Message: "Gzip magic bytes detected but failed to create gzip reader, falling back to uncompressed parsing",
+					qe.Logger.Error(&libpack_logger.LogMessage{
+						Message: "Gzip magic bytes detected but failed to create gzip reader",
 						Pairs: map[string]interface{}{
-							"gzip_error":              err.Error(),
+							"gzip_reader_error":       err.Error(),
 							"content_encoding_header": encoding,
 							"detection_method":        detectionMethod,
+							"raw_size":                len(rawData),
+							"first_two_bytes":         fmt.Sprintf("0x%02x 0x%02x", rawData[0], rawData[1]),
 						},
 					})
-					// Fallback: treat raw data as uncompressed
-					finalData = rawData
-					detectionMethod = "fallback_to_plain"
+					return fmt.Errorf("gzip reader creation failed: data has gzip magic bytes but gzip.NewReader error: %w", err)
 				} else {
 					// Successfully created gzip reader, now try to decompress
 					defer gzipReader.Close()
 
 					_, copyErr := io.Copy(respBuf, gzipReader)
 					if copyErr != nil {
-						// Gzip decompression failed, try fallback
-						qe.Logger.Warning(&libpack_logger.LogMessage{
-							Message: "Gzip magic bytes detected but decompression failed, falling back to uncompressed parsing",
+						// Gzip decompression failed - this is an error condition, not a fallback scenario
+						qe.Logger.Error(&libpack_logger.LogMessage{
+							Message: "Gzip magic bytes detected but decompression failed",
 							Pairs: map[string]interface{}{
-								"copy_error":              copyErr,
+								"gzip_decompress_error":   copyErr.Error(),
 								"raw_size":                len(rawData),
 								"content_encoding_header": encoding,
 								"detection_method":        detectionMethod,
+								"first_two_bytes":         fmt.Sprintf("0x%02x 0x%02x", rawData[0], rawData[1]),
 							},
 						})
-						// Fallback: treat raw data as uncompressed
-						finalData = rawData
-						detectionMethod = "fallback_to_plain"
+						return fmt.Errorf("gzip decompression failed: data has gzip magic bytes but decompression error: %w", copyErr)
 					} else {
 						// Successful decompression
 						finalData = respBuf.Bytes()
@@ -213,18 +212,33 @@ func (qe *QueryExecutor) executeQuery() ([]byte, error) {
 					}
 				}
 			} else if encoding == "gzip" {
-				// Header claims gzip but no magic bytes - this is a buggy server
-				detectionMethod = "header_claims_gzip_but_no_magic_bytes"
-				qe.Logger.Warning(&libpack_logger.LogMessage{
-					Message: "Server claims gzip encoding but data lacks gzip magic bytes - treating as plain JSON",
-					Pairs: map[string]interface{}{
-						"content_encoding_header": encoding,
-						"detection_method":        detectionMethod,
-						"first_few_bytes":         string(rawData[:min(50, len(rawData))]),
-					},
-				})
-				// Treat as uncompressed since magic bytes are missing
-				finalData = rawData
+				// Header claims gzip but no magic bytes - check if client already handled decompression
+				detectionMethod = "header_claims_gzip_no_magic_bytes"
+
+				// Check if this looks like valid JSON (likely already decompressed by client)
+				trimmed := bytes.TrimSpace(rawData)
+				if len(trimmed) > 0 && (trimmed[0] == '{' || trimmed[0] == '[') {
+					qe.Logger.Debug(&libpack_logger.LogMessage{
+						Message: "Content-Encoding header indicates gzip but data appears to be JSON - likely auto-decompressed by HTTP client",
+						Pairs: map[string]interface{}{
+							"content_encoding_header": encoding,
+							"detection_method":        detectionMethod,
+							"data_starts_with_json":   true,
+						},
+					})
+					finalData = rawData
+				} else {
+					qe.Logger.Warning(&libpack_logger.LogMessage{
+						Message: "Content-Encoding header indicates gzip but no magic bytes and data doesn't look like JSON",
+						Pairs: map[string]interface{}{
+							"content_encoding_header": encoding,
+							"detection_method":        detectionMethod,
+							"first_few_bytes":         string(rawData[:min(50, len(rawData))]),
+							"data_size":               len(rawData),
+						},
+					})
+					return fmt.Errorf("content encoding mismatch: header claims gzip but data has no gzip magic bytes and doesn't appear to be valid JSON")
+				}
 			} else {
 				// No compression indicated by header and no gzip magic bytes
 				detectionMethod = "plain_json"
