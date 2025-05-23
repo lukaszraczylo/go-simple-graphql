@@ -303,6 +303,6 @@ func (suite *Tests) TestQueryExecutor_executeQuery_requestCreationError() {
 		result, err := qe.executeQuery()
 		assert.Error(err)
 		assert.Nil(result)
-		assert.Contains(err.Error(), "Can't create HTTP request")
+		assert.Contains(err.Error(), "can't create HTTP request")
 	})
 }
