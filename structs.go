@@ -2,6 +2,7 @@ package gql
 
 import (
 	"net/http"
+	"sync"
 	"time"
 
 	cache "github.com/lukaszraczylo/go-simple-graphql/cache"
@@ -9,6 +10,7 @@ import (
 )
 
 type BaseClient struct {
+	mu             sync.RWMutex // Protects all fields for thread-safe access
 	cache          *cache.Cache
 	Logger         *logging.Logger
 	client         *http.Client

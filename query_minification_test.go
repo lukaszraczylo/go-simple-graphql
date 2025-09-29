@@ -8,6 +8,7 @@ import (
 )
 
 func TestMinifyGraphQLQuery(t *testing.T) {
+	t.Parallel()
 	assert := assertions.New(t)
 
 	tests := []struct {
@@ -131,6 +132,7 @@ func TestMinifyGraphQLQuery(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			result := minifyGraphQLQuery(tt.input)
 			assert.Equal(tt.expected, result, "Minified query should match expected output")
 
@@ -150,6 +152,7 @@ func TestMinifyGraphQLQuery(t *testing.T) {
 }
 
 func TestMinifyGraphQLQuerySizeReduction(t *testing.T) {
+	t.Parallel()
 	assert := assertions.New(t)
 
 	// Test with a heavily formatted query
@@ -208,9 +211,11 @@ func TestMinifyGraphQLQuerySizeReduction(t *testing.T) {
 }
 
 func TestBaseClientQueryMinification(t *testing.T) {
+	t.Parallel()
 	assert := assertions.New(t)
 
 	t.Run("should_minify_queries_by_default", func(t *testing.T) {
+		t.Parallel()
 		client := CreateTestClient()
 
 		// Verify minification is enabled by default
@@ -233,6 +238,7 @@ func TestBaseClientQueryMinification(t *testing.T) {
 	})
 
 	t.Run("should_respect_minification_disabled", func(t *testing.T) {
+		t.Parallel()
 		client := CreateTestClient()
 		client.SetQueryMinification(false)
 
@@ -254,6 +260,7 @@ func TestBaseClientQueryMinification(t *testing.T) {
 	})
 
 	t.Run("should_handle_string_literals_correctly", func(t *testing.T) {
+		t.Parallel()
 		client := CreateTestClient()
 
 		query := `mutation test($value: String!) {
@@ -278,6 +285,7 @@ func TestBaseClientQueryMinification(t *testing.T) {
 	})
 
 	t.Run("should_demonstrate_size_reduction_with_production_case", func(t *testing.T) {
+		t.Parallel()
 		client := CreateTestClient()
 
 		// Use the production case from trailing garbage test
@@ -324,6 +332,7 @@ func TestBaseClientQueryMinification(t *testing.T) {
 }
 
 func TestIsAlphaNumeric(t *testing.T) {
+	t.Parallel()
 	assert := assertions.New(t)
 
 	tests := []struct {
@@ -351,6 +360,7 @@ func TestIsAlphaNumeric(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(string(tt.char), func(t *testing.T) {
+			t.Parallel()
 			result := isAlphaNumeric(tt.char)
 			assert.Equal(tt.expected, result, "isAlphaNumeric should correctly identify character type")
 		})
@@ -358,9 +368,11 @@ func TestIsAlphaNumeric(t *testing.T) {
 }
 
 func TestQueryMinificationEnvironmentVariable(t *testing.T) {
+	t.Parallel()
 	assert := assertions.New(t)
 
 	t.Run("should_respect_GRAPHQL_MINIFY_QUERIES_env_var", func(t *testing.T) {
+		t.Parallel()
 		// This test would require setting environment variables
 		// For now, we'll test the default behavior
 		client := NewConnection()
@@ -371,19 +383,23 @@ func TestQueryMinificationEnvironmentVariable(t *testing.T) {
 }
 
 func TestQueryMinificationEdgeCases(t *testing.T) {
+	t.Parallel()
 	assert := assertions.New(t)
 
 	t.Run("should_handle_empty_query", func(t *testing.T) {
+		t.Parallel()
 		result := minifyGraphQLQuery("")
 		assert.Equal("", result, "Empty query should remain empty")
 	})
 
 	t.Run("should_handle_query_with_only_whitespace", func(t *testing.T) {
+		t.Parallel()
 		result := minifyGraphQLQuery("   \n\t  \n  ")
 		assert.Equal("", result, "Query with only whitespace should become empty")
 	})
 
 	t.Run("should_handle_nested_quotes", func(t *testing.T) {
+		t.Parallel()
 		query := `mutation test {
 			insert_test(value: "String with \"nested quotes\" and 'mixed' quotes") {
 				id
@@ -395,6 +411,7 @@ func TestQueryMinificationEdgeCases(t *testing.T) {
 	})
 
 	t.Run("should_preserve_spaces_between_keywords", func(t *testing.T) {
+		t.Parallel()
 		query := `query test($var: String!) {
 			field(where: {id: {_eq: $var}}) {
 				id

@@ -10,6 +10,7 @@ import (
 // TestQueryJSONEncoding verifies that the Query struct serializes correctly
 // without including the JsonQuery field, preventing "Trailing garbage" errors
 func TestQueryJSONEncoding(t *testing.T) {
+	t.Parallel()
 	assert := assertions.New(t)
 	client := CreateTestClient()
 
@@ -47,6 +48,7 @@ func TestQueryJSONEncoding(t *testing.T) {
 
 // TestQueryJSONEncodingPreventsTrailingGarbage ensures the fix prevents the specific error
 func TestQueryJSONEncodingPreventsTrailingGarbage(t *testing.T) {
+	t.Parallel()
 	assert := assertions.New(t)
 	client := CreateTestClient()
 

@@ -1,6 +1,7 @@
 package gql
 
 import (
+	"fmt"
 	"net/http"
 	"time"
 
@@ -40,7 +41,18 @@ func NewConnection() (b *BaseClient) {
 		retries_number: envutil.GetInt("GRAPHQL_RETRIES_NUMBER", 3),
 		minify_queries: envutil.GetBool("GRAPHQL_MINIFY_QUERIES", true), // Default: enabled for production efficiency
 	}
-	b.client = b.createHttpClient()
+	client, err := b.createHttpClient()
+	if err != nil {
+		b.Logger.Critical(&logging.LogMessage{
+			Message: "Failed to create HTTP client",
+			Pairs: map[string]interface{}{
+				"error": err.Error(),
+			},
+		})
+		// For backward compatibility, we'll still return the client but it won't work
+		return b
+	}
+	b.client = client
 	b.Logger.Debug(&logging.LogMessage{
 		Message: "Created new GraphQL client connection",
 		Pairs: map[string]interface{}{
@@ -51,21 +63,46 @@ func NewConnection() (b *BaseClient) {
 }
 
 func (b *BaseClient) SetEndpoint(endpoint string) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
 	b.endpoint = endpoint
 }
 
-func (b *BaseClient) SetOutput(responseType string) {
-	// allowed are byte, string, mapstring
-	// check if responseType is allowed
-	// TODO: implement
+func (b *BaseClient) SetOutput(responseType string) error {
+	// Validate responseType - allowed values are "byte", "string", "mapstring"
+	allowedTypes := map[string]bool{
+		"byte":      true,
+		"string":    true,
+		"mapstring": true,
+	}
+
+	if !allowedTypes[responseType] {
+		return fmt.Errorf("invalid response type: %s. Allowed values are: byte, string, mapstring", responseType)
+	}
+
+	b.mu.Lock()
+	defer b.mu.Unlock()
 	b.responseType = responseType
+
+	b.Logger.Debug(&logging.LogMessage{
+		Message: "Response type updated",
+		Pairs: map[string]interface{}{
+			"response_type": responseType,
+		},
+	})
+
+	return nil
 }
 
 func (b *BaseClient) SetHTTPClient(client *http.Client) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
 	b.client = client
 }
 
 func (b *BaseClient) SetQueryMinification(enabled bool) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
 	b.minify_queries = enabled
 	b.Logger.Debug(&logging.LogMessage{
 		Message: "GraphQL query minification setting updated",

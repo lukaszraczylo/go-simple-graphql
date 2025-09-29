@@ -71,7 +71,8 @@ func (suite *RequestCompressionTestSuite) TestRequestCompression() {
 				client.endpoint = endpoint
 
 				// Create HTTP client using the same logic as the library
-				httpClient := client.createHttpClient()
+				httpClient, err := client.createHttpClient()
+				assert.NoError(err, "HTTP client should be created without error")
 				assert.NotNil(httpClient, "HTTP client should be created")
 
 				// Verify transport settings

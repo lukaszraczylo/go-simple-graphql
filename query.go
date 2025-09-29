@@ -10,6 +10,13 @@ import (
 	libpack_logger "github.com/lukaszraczylo/go-simple-graphql/logging"
 )
 
+// Size limit constants for security
+const (
+	MaxQuerySize    = 100 * 1024       // 100KB max query size
+	MaxVariableSize = 10 * 1024        // 10KB max variables size
+	MaxResponseSize = 10 * 1024 * 1024 // 10MB max response size
+)
+
 // minifyGraphQLQuery removes unnecessary whitespace from GraphQL queries while preserving string literals
 func minifyGraphQLQuery(query string) string {
 	if query == "" {
@@ -238,7 +245,10 @@ func (b *BaseClient) compileQuery(queryPartials ...any) *Query {
 
 	// Apply query minification if enabled (default: true)
 	finalQuery := query
-	if b.minify_queries {
+	b.mu.RLock()
+	minifyEnabled := b.minify_queries
+	b.mu.RUnlock()
+	if minifyEnabled {
 		originalSize := len(query)
 		minifiedQuery := minifyGraphQLQuery(query)
 		minifiedSize := len(minifiedQuery)
@@ -268,8 +278,35 @@ func (b *BaseClient) compileQuery(queryPartials ...any) *Query {
 }
 
 func (b *BaseClient) Query(query string, variables map[string]interface{}, headers map[string]interface{}) (any, error) {
+	// Validate query size limit
+	if len(query) > MaxQuerySize {
+		b.Logger.Error(&libpack_logger.LogMessage{
+			Message: "Query exceeds maximum size limit",
+			Pairs: map[string]interface{}{
+				"query_size": len(query),
+				"max_size":   MaxQuerySize,
+			},
+		})
+		return nil, fmt.Errorf("query size %d exceeds maximum allowed size of %d bytes", len(query), MaxQuerySize)
+	}
+
 	// Process flags before compilation to avoid recompilation
 	enableCache, enableRetries, cleanedVariables := processFlags(variables, headers)
+
+	// Validate variables size limit
+	if cleanedVariables != nil {
+		variablesJSON, err := json.Marshal(cleanedVariables)
+		if err == nil && len(variablesJSON) > MaxVariableSize {
+			b.Logger.Error(&libpack_logger.LogMessage{
+				Message: "Variables exceed maximum size limit",
+				Pairs: map[string]interface{}{
+					"variables_size": len(variablesJSON),
+					"max_size":       MaxVariableSize,
+				},
+			})
+			return nil, fmt.Errorf("variables size %d exceeds maximum allowed size of %d bytes", len(variablesJSON), MaxVariableSize)
+		}
+	}
 
 	// Compile query once with cleaned variables
 	compiledQuery := b.compileQuery(query, cleanedVariables)
@@ -282,11 +319,14 @@ func (b *BaseClient) Query(query string, variables map[string]interface{}, heade
 	}
 	b.Logger.Debug(&libpack_logger.LogMessage{
 		Message: "Compiled query",
-		Pairs:   map[string]interface{}{"query": compiledQuery},
+		Pairs:   map[string]interface{}{"query": sanitizeForLogging(compiledQuery.Query)},
 	})
 
 	var queryHash string
-	if (enableCache || b.cache_global) && strutil.HasPrefix(compiledQuery.Query, "query") {
+	b.mu.RLock()
+	cacheGlobal := b.cache_global
+	b.mu.RUnlock()
+	if (enableCache || cacheGlobal) && strutil.HasPrefix(compiledQuery.Query, "query") {
 		b.Logger.Debug(&libpack_logger.LogMessage{
 			Message: "Cache enabled",
 			Pairs:   nil,
@@ -295,13 +335,13 @@ func (b *BaseClient) Query(query string, variables map[string]interface{}, heade
 		if cachedValue := b.cacheLookup(queryHash); cachedValue != nil {
 			b.Logger.Debug(&libpack_logger.LogMessage{
 				Message: "Cache hit",
-				Pairs:   map[string]interface{}{"query": compiledQuery},
+				Pairs:   map[string]interface{}{"query_hash": queryHash},
 			})
 			return b.decodeResponse(cachedValue)
 		}
 		b.Logger.Debug(&libpack_logger.LogMessage{
 			Message: "Cache miss",
-			Pairs:   map[string]interface{}{"query": compiledQuery},
+			Pairs:   map[string]interface{}{"query_hash": queryHash},
 		})
 	}
 
@@ -315,7 +355,11 @@ func (b *BaseClient) Query(query string, variables map[string]interface{}, heade
 			}
 			return "no-cache"
 		}(),
-		Retries: enableRetries || b.retries_enable,
+		Retries: func() bool {
+			b.mu.RLock()
+			defer b.mu.RUnlock()
+			return enableRetries || b.retries_enable
+		}(),
 	}
 
 	rv, err := q.executeQuery()

@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"time"
 	"unicode/utf8"
 
@@ -15,6 +16,8 @@ import (
 	"github.com/goccy/go-json"
 	libpack_logger "github.com/lukaszraczylo/go-simple-graphql/logging"
 )
+
+// Size limit constants are defined in query.go
 
 // min returns the smaller of two integers
 func min(a, b int) int {
@@ -32,23 +35,38 @@ func max(a, b int) int {
 	return b
 }
 
-var (
-	// Shared HTTP transport with optimized settings
-	defaultTransport = &http.Transport{
-		MaxIdleConns:        100,
-		MaxIdleConnsPerHost: 100,
-		IdleConnTimeout:     90 * time.Second,
-		DisableCompression:  true, // Disable automatic request compression to prevent "trailing garbage" errors
-		ForceAttemptHTTP2:   true,
-		TLSClientConfig:     &tls.Config{InsecureSkipVerify: true}, // Skip TLS verification for test environments
+// getDefaultClient creates a default HTTP client with optimized settings
+// This is called dynamically to ensure environment variables are read at runtime
+func getDefaultClient() *http.Client {
+	return &http.Client{
+		Transport: &http.Transport{
+			MaxIdleConns:        100,
+			MaxIdleConnsPerHost: 100,
+			IdleConnTimeout:     90 * time.Second,
+			DisableCompression:  true, // Disable automatic request compression to prevent "trailing garbage" errors
+			ForceAttemptHTTP2:   true,
+			TLSClientConfig:     getTLSConfig(),
+		},
+		Timeout: 30 * time.Second,
+	}
+}
+
+// getTLSConfig returns TLS configuration based on environment settings
+// By default, TLS verification is enabled for security.
+// Set GRAPHQL_INSECURE_SKIP_VERIFY=true to disable verification (NOT RECOMMENDED for production)
+func getTLSConfig() *tls.Config {
+	skipVerify := os.Getenv("GRAPHQL_INSECURE_SKIP_VERIFY") == "true"
+
+	if skipVerify {
+		// Log warning when running in insecure mode
+		fmt.Fprintf(os.Stderr, "WARNING: TLS certificate verification is disabled. This is insecure and should not be used in production.\n")
 	}
 
-	// Shared HTTP client with timeouts
-	defaultClient = &http.Client{
-		Transport: defaultTransport,
-		Timeout:   30 * time.Second,
+	return &tls.Config{
+		InsecureSkipVerify: skipVerify,
+		MinVersion:         tls.VersionTLS12, // Enforce minimum TLS 1.2 for security
 	}
-)
+}
 
 func (qe *QueryExecutor) executeQuery() ([]byte, error) {
 	// Reuse buffer from pool to avoid allocations
@@ -58,7 +76,10 @@ func (qe *QueryExecutor) executeQuery() ([]byte, error) {
 
 	buf.Write(qe.Query)
 
-	httpRequest, err := http.NewRequest(http.MethodPost, qe.endpoint, nil)
+	qe.mu.RLock()
+	endpoint := qe.endpoint
+	qe.mu.RUnlock()
+	httpRequest, err := http.NewRequest(http.MethodPost, endpoint, nil)
 	if err != nil {
 		qe.Logger.Error(&libpack_logger.LogMessage{
 			Message: "Can't create HTTP request",
@@ -82,7 +103,9 @@ func (qe *QueryExecutor) executeQuery() ([]byte, error) {
 
 	retriesMax := 1
 	if qe.Retries {
+		qe.mu.RLock()
 		retriesMax = qe.retries_number
+		qe.mu.RUnlock()
 	}
 
 	var queryResult queryResults
@@ -100,8 +123,8 @@ func (qe *QueryExecutor) executeQuery() ([]byte, error) {
 					"body_size":          len(requestBody),
 					"contains_jsonQuery": bytes.Contains(requestBody, []byte(`"jsonQuery"`)),
 					"contains_base64":    bytes.Contains(requestBody, []byte("eyJ")),
-					"first_100_chars":    string(requestBody[:min(100, len(requestBody))]),
-					"last_50_chars":      string(requestBody[max(0, len(requestBody)-50):]),
+					"first_100_chars":    sanitizeForLogging(string(requestBody[:min(100, len(requestBody))])),
+					"last_50_chars":      sanitizeForLogging(string(requestBody[max(0, len(requestBody)-50):])),
 					"is_valid_utf8":      utf8.Valid(requestBody),
 					"has_null_bytes":     bytes.Contains(requestBody, []byte{0}),
 					"has_control_chars":  hasControlChars(requestBody),
@@ -132,9 +155,11 @@ func (qe *QueryExecutor) executeQuery() ([]byte, error) {
 			})
 
 			// Use default client if custom client is not set
+			qe.mu.RLock()
 			client := qe.client
+			qe.mu.RUnlock()
 			if client == nil {
-				client = defaultClient
+				client = getDefaultClient()
 			}
 			httpResponse, err := client.Do(httpRequest)
 			if err != nil {
@@ -159,14 +184,30 @@ func (qe *QueryExecutor) executeQuery() ([]byte, error) {
 				},
 			})
 
-			// First, read the entire response body into a buffer
+			// Check Content-Length header if available for early size validation
+			if contentLength := httpResponse.ContentLength; contentLength > 0 && contentLength > MaxResponseSize {
+				return fmt.Errorf("response size %d exceeds maximum allowed size of %d bytes", contentLength, MaxResponseSize)
+			}
+
+			// First, read the entire response body into a buffer with size limit
 			rawBuf := bufferPool.Get().(*bytes.Buffer)
 			rawBuf.Reset()
 			defer bufferPool.Put(rawBuf)
 
-			_, err = io.Copy(rawBuf, httpResponse.Body)
+			// Use LimitedReader to prevent reading more than MaxResponseSize
+			limitedReader := &io.LimitedReader{
+				R: httpResponse.Body,
+				N: MaxResponseSize + 1, // Read one extra byte to detect oversized responses
+			}
+
+			n, err := io.Copy(rawBuf, limitedReader)
 			if err != nil {
 				return fmt.Errorf("error reading HTTP response body: %w", err)
+			}
+
+			// Check if response exceeded size limit
+			if n > MaxResponseSize {
+				return fmt.Errorf("response size exceeds maximum allowed size of %d bytes", MaxResponseSize)
 			}
 
 			rawData := rawBuf.Bytes()
@@ -341,7 +382,11 @@ func (qe *QueryExecutor) executeQuery() ([]byte, error) {
 		}),
 		retry.Attempts(uint(retriesMax)),
 		retry.DelayType(retry.BackOffDelay),
-		retry.Delay(time.Duration(qe.retries_delay)),
+		retry.Delay(func() time.Duration {
+			qe.mu.RLock()
+			defer qe.mu.RUnlock()
+			return qe.retries_delay
+		}()),
 		retry.MaxDelay(10*time.Second),
 		retry.LastErrorOnly(true),
 	)
