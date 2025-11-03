@@ -37,14 +37,51 @@ Therefore, I present you the simple client to which you can copy & paste your gr
 * `GRAPHQL_CACHE_TTL` -  Cache TTL in seconds for SELECT type of queries. Default: `5`
 * `GRAPHQL_OUTPUT` - Output format. Default: `string`, available: `byte`, `string`, `mapstring`
 * `LOG_LEVEL` - Logging level. Default: `info` available: `debug`, `info`, `warn`, `error`
-* `GRAPHQL_RETRIES_ENABLE` - Should retries be enabled? Default: `true`
-* `GRAPHQL_RETRIES_NUMBER` - Number of retries: Default: `1`
+* `GRAPHQL_RETRIES_ENABLE` - Should retries be enabled? Default: `false`
+* `GRAPHQL_RETRIES_NUMBER` - Number of retries: Default: `3`
 * `GRAPHQL_RETRIES_DELAY` - Delay in retries in milliseconds. Default: `250`
+* `GRAPHQL_RETRIES_PATTERNS` - Comma-separated error patterns that trigger retries. Default: `postgres,connection,timeout,transaction,could not,temporarily unavailable,deadlock`
 
 ### Modifiers on the fly
 
 * `gql.SetEndpoint('your-endpoint-url')` - modifies endpoint, without the need to set the environment variable
 * `gql.SetOutput('byte')` - modifies output format, without the need to set the environment variable
+
+### Retries
+
+The library supports automatic retries for both HTTP-level errors and GraphQL errors that match configurable patterns.
+
+**Retry behavior:**
+- **HTTP errors** (status codes outside 200-299): Always retried if retries are enabled
+- **GraphQL errors**: Only retried if the error message contains one of the configured patterns
+- **Non-matching errors**: Fail immediately without retrying (e.g., validation errors, field not found)
+
+**Configuring retryable patterns:**
+
+By default, errors containing these patterns will trigger retries:
+- `postgres` - Database connection/transaction errors
+- `connection` - Network connection issues
+- `timeout` - Request timeout errors
+- `transaction` - Database transaction conflicts
+- `could not` - Generic transient failures
+- `temporarily unavailable` - Service unavailability
+- `deadlock` - Database deadlocks
+
+You can customize these patterns using the `GRAPHQL_RETRIES_PATTERNS` environment variable:
+
+```bash
+export GRAPHQL_RETRIES_PATTERNS="postgres,connection,timeout,custom-error-pattern"
+```
+
+**Example:** To handle flaky Hasura database connections, enable retries:
+
+```bash
+export GRAPHQL_RETRIES_ENABLE=true
+export GRAPHQL_RETRIES_NUMBER=3
+export GRAPHQL_RETRIES_DELAY=250
+```
+
+This will retry GraphQL queries up to 3 times when postgres transaction errors occur, with exponential backoff starting at 250ms.
 
 ### Cache
 

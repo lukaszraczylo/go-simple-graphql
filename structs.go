@@ -9,17 +9,18 @@ import (
 )
 
 type BaseClient struct {
-	cache          *cache.Cache
-	Logger         *logging.Logger
-	client         *http.Client
-	endpoint       string
-	responseType   string
-	retries_delay  time.Duration
-	retries_number int
-	MaxGoRoutines  int
-	cache_global   bool
-	retries_enable bool
-	minify_queries bool // Enable GraphQL query minification (default: true)
+	cache            *cache.Cache
+	Logger           *logging.Logger
+	client           *http.Client
+	endpoint         string
+	responseType     string
+	retries_delay    time.Duration
+	retries_number   int
+	retries_patterns []string // Error patterns that should trigger retries
+	MaxGoRoutines    int
+	cache_global     bool
+	retries_enable   bool
+	minify_queries   bool // Enable GraphQL query minification (default: true)
 }
 
 type Query struct {

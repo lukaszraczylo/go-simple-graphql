@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 	"unicode/utf8"
 
@@ -30,6 +31,47 @@ func max(a, b int) int {
 		return a
 	}
 	return b
+}
+
+// isRetryableError checks if GraphQL errors contain patterns that indicate a transient failure
+// that should be retried (e.g., database connection issues, timeouts, transaction conflicts)
+func isRetryableError(errors []struct {
+	Message interface{} `json:"message"`
+}, patterns []string) bool {
+	if len(errors) == 0 || len(patterns) == 0 {
+		return false
+	}
+
+	for _, err := range errors {
+		// Try to extract error message as string
+		var msgStr string
+		switch msg := err.Message.(type) {
+		case string:
+			msgStr = msg
+		case map[string]interface{}:
+			// Handle nested error structures (e.g., {"message": "...", "extensions": {...}})
+			if nestedMsg, ok := msg["message"].(string); ok {
+				msgStr = nestedMsg
+			}
+		default:
+			// If we can't convert to string, try fmt.Sprint as fallback
+			msgStr = fmt.Sprint(msg)
+		}
+
+		if msgStr == "" {
+			continue
+		}
+
+		// Check if error message contains any of the configured retry patterns (case-insensitive)
+		msgLower := strings.ToLower(msgStr)
+		for _, pattern := range patterns {
+			if strings.Contains(msgLower, strings.ToLower(pattern)) {
+				return true
+			}
+		}
+	}
+
+	return false
 }
 
 var (
@@ -331,6 +373,38 @@ func (qe *QueryExecutor) executeQuery() ([]byte, error) {
 				return fmt.Errorf("error unmarshalling HTTP response: %w", err)
 			}
 
+			// Check for GraphQL errors in the response
+			if len(queryResult.Errors) > 0 {
+				// Determine if this is a retryable error based on configured patterns
+				if isRetryableError(queryResult.Errors, qe.retries_patterns) {
+					// Log as warning since we'll retry
+					qe.Logger.Warning(&libpack_logger.LogMessage{
+						Message: "Retryable GraphQL error detected",
+						Pairs:   map[string]interface{}{"errors": queryResult.Errors},
+					})
+					// Return error to trigger retry mechanism
+					return fmt.Errorf("retryable error executing query: %s", queryResult.Errors)
+				}
+
+				// Non-retryable error - log and fail immediately without retrying
+				qe.Logger.Error(&libpack_logger.LogMessage{
+					Message: "Non-retryable GraphQL error",
+					Pairs:   map[string]interface{}{"errors": queryResult.Errors},
+				})
+				// Use retry.Unrecoverable to skip remaining retry attempts
+				return retry.Unrecoverable(fmt.Errorf("error executing query: %s", queryResult.Errors))
+			}
+
+			// Check for null data in the response
+			if queryResult.Data == nil {
+				qe.Logger.Error(&libpack_logger.LogMessage{
+					Message: "GraphQL query returned no data",
+					Pairs:   map[string]interface{}{"error": "data field is null"},
+				})
+				// Null data is typically not retryable (indicates query structure issue)
+				return retry.Unrecoverable(errors.New("error executing query: no data"))
+			}
+
 			return nil
 		},
 		retry.OnRetry(func(n uint, err error) {
@@ -346,33 +420,18 @@ func (qe *QueryExecutor) executeQuery() ([]byte, error) {
 		retry.LastErrorOnly(true),
 	)
 	if err != nil {
-		qe.Logger.Debug(&libpack_logger.LogMessage{
-			Message: "Error executing HTTP request",
+		qe.Logger.Error(&libpack_logger.LogMessage{
+			Message: "Query execution failed after retries",
 			Pairs:   map[string]interface{}{"error": err.Error()},
 		})
 		return nil, err
 	}
 
-	if len(queryResult.Errors) > 0 {
-		qe.Logger.Debug(&libpack_logger.LogMessage{
-			Message: "Error executing query",
-			Pairs:   map[string]interface{}{"error": queryResult.Errors},
-		})
-		return nil, fmt.Errorf("error executing query: %s", queryResult.Errors)
-	}
-
-	if queryResult.Data == nil {
-		qe.Logger.Debug(&libpack_logger.LogMessage{
-			Message: "Error executing query",
-			Pairs:   map[string]interface{}{"error": "no data"},
-		})
-		return nil, errors.New("error executing query: no data")
-	}
-
+	// At this point, we have successfully executed the query and validated the response
 	// Marshal queryResult.Data
 	jsonData, err := json.Marshal(queryResult.Data)
 	if err != nil {
-		qe.Logger.Debug(&libpack_logger.LogMessage{
+		qe.Logger.Error(&libpack_logger.LogMessage{
 			Message: "Error marshalling query result",
 			Pairs:   map[string]interface{}{"error": err.Error(), "data": queryResult.Data},
 		})
