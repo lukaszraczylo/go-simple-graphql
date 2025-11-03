@@ -11,60 +11,50 @@ import (
 )
 
 func (b *BaseClient) createHttpClient() (http_client *http.Client) {
-	// Optimized connection pool settings for better performance
-	httpTransport := &http.Transport{
-		MaxIdleConns:          100,              // Reduced from 512
-		MaxConnsPerHost:       50,               // Reduced from 512
-		MaxIdleConnsPerHost:   10,               // Reduced from 512
-		IdleConnTimeout:       30 * time.Second, // Increased for better reuse
-		ResponseHeaderTimeout: 10 * time.Second, // Reduced for faster timeouts
-		DisableKeepAlives:     false,
-		DisableCompression:    true, // Disable automatic request compression to prevent "trailing garbage" errors
-		WriteBufferSize:       4096, // Optimize buffer size
-		ReadBufferSize:        4096, // Optimize buffer size
+	// Create TLS config for HTTPS endpoints
+	var tlsClientConfig *tls.Config
+	if strings.HasPrefix(b.endpoint, "https://") {
+		tlsClientConfig = &tls.Config{
+			InsecureSkipVerify: true, // TODO: Make this configurable via environment variable
+		}
 	}
 
+	// Use HTTP/2 transport for both http:// (h2c) and https:// endpoints
+	// AllowHTTP=true enables HTTP/2 Cleartext (h2c) for unencrypted connections
+	http2Transport := &http2.Transport{
+		AllowHTTP:          true,             // Enable h2c for http:// endpoints
+		TLSClientConfig:    tlsClientConfig,  // nil for http://, configured for https://
+		ReadIdleTimeout:    30 * time.Second, // Increased for better connection reuse
+		PingTimeout:        10 * time.Second, // Reduced for faster dead connection detection
+		WriteByteTimeout:   10 * time.Second, // Write timeout for better error handling
+		DisableCompression: true,             // Disable automatic compression to prevent trailing garbage errors
+	}
+
+	http_client = &http.Client{
+		Timeout:   30 * time.Second, // Overall request timeout
+		Transport: http2Transport,
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse // Don't follow redirects automatically
+		},
+	}
+
+	// Log which protocol is being used
 	if strings.HasPrefix(b.endpoint, "http://") {
-		http_client = &http.Client{
-			Timeout:   30 * time.Second, // Increased for better reliability
-			Transport: httpTransport,
-			CheckRedirect: func(req *http.Request, via []*http.Request) error {
-				return http.ErrUseLastResponse
-			},
-		}
 		b.Logger.Debug(&libpack_logger.LogMessage{
-			Message: "Using HTTP/1.1 over http",
+			Message: "Using HTTP/2 Cleartext (h2c) over http",
 			Pairs:   nil,
 		})
 	} else if strings.HasPrefix(b.endpoint, "https://") {
-		tlsClientConfig := &tls.Config{}
-		if strings.HasPrefix(b.endpoint, "https://") {
-			tlsClientConfig.InsecureSkipVerify = true
-		}
-		http2Transport := &http2.Transport{
-			AllowHTTP:          true,
-			TLSClientConfig:    tlsClientConfig,
-			ReadIdleTimeout:    30 * time.Second, // Increased for better reuse
-			PingTimeout:        10 * time.Second, // Reduced for faster detection
-			WriteByteTimeout:   10 * time.Second, // Add write timeout
-			DisableCompression: true,             // Disable automatic request compression to prevent "trailing garbage" errors
-		}
-		http_client = &http.Client{
-			Timeout:   30 * time.Second, // Increased for better reliability
-			Transport: http2Transport,
-			CheckRedirect: func(req *http.Request, via []*http.Request) error {
-				return http.ErrUseLastResponse
-			},
-		}
 		b.Logger.Debug(&libpack_logger.LogMessage{
-			Message: "Using HTTP/2 over https",
+			Message: "Using HTTP/2 over TLS (https)",
 			Pairs:   nil,
 		})
 	} else {
 		b.Logger.Critical(&libpack_logger.LogMessage{
-			Message: "Invalid endpoint - neither http or https",
+			Message: "Invalid endpoint - must start with http:// or https://",
 		})
 		return nil
 	}
+
 	return http_client
 }

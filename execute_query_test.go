@@ -185,7 +185,7 @@ func (suite *Tests) TestQueryExecutor_executeQuery() {
 		assert.Equal(3, attempts) // Should have retried twice before succeeding
 	})
 
-	suite.T().Run("should use default client when none provided", func(t *testing.T) {
+	suite.T().Run("should return error when client not initialized", func(t *testing.T) {
 		client := CreateTestClient()
 
 		qe := &QueryExecutor{
@@ -196,12 +196,13 @@ func (suite *Tests) TestQueryExecutor_executeQuery() {
 			Retries:    false,
 		}
 		qe.endpoint = mockServer.URL
-		qe.client = nil // No client provided
+		qe.client = nil // No client provided (should always use NewConnection())
 		qe.cache = client.cache
 
 		result, err := qe.executeQuery()
-		assert.NoError(err)
-		assert.NotNil(result)
+		assert.Error(err)
+		assert.Nil(result)
+		assert.Contains(err.Error(), "HTTP client not initialized")
 	})
 
 	suite.T().Run("should set default Content-Type header", func(t *testing.T) {

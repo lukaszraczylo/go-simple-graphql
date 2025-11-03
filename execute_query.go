@@ -3,7 +3,6 @@ package gql
 import (
 	"bytes"
 	"compress/gzip"
-	"crypto/tls"
 	"errors"
 	"fmt"
 	"io"
@@ -74,23 +73,8 @@ func isRetryableError(errors []struct {
 	return false
 }
 
-var (
-	// Shared HTTP transport with optimized settings
-	defaultTransport = &http.Transport{
-		MaxIdleConns:        100,
-		MaxIdleConnsPerHost: 100,
-		IdleConnTimeout:     90 * time.Second,
-		DisableCompression:  true, // Disable automatic request compression to prevent "trailing garbage" errors
-		ForceAttemptHTTP2:   true,
-		TLSClientConfig:     &tls.Config{InsecureSkipVerify: true}, // Skip TLS verification for test environments
-	}
-
-	// Shared HTTP client with timeouts
-	defaultClient = &http.Client{
-		Transport: defaultTransport,
-		Timeout:   30 * time.Second,
-	}
-)
+// Note: defaultClient removed - all clients should be created via NewConnection()
+// which properly configures HTTP/2 transport with correct settings
 
 func (qe *QueryExecutor) executeQuery() ([]byte, error) {
 	// Reuse buffer from pool to avoid allocations
@@ -173,12 +157,16 @@ func (qe *QueryExecutor) executeQuery() ([]byte, error) {
 				},
 			})
 
-			// Use default client if custom client is not set
-			client := qe.client
-			if client == nil {
-				client = defaultClient
+			// Client should always be set via NewConnection(), but check for safety
+			if qe.client == nil {
+				qe.Logger.Error(&libpack_logger.LogMessage{
+					Message: "HTTP client not initialized - use NewConnection() to create client",
+					Pairs:   nil,
+				})
+				return fmt.Errorf("HTTP client not initialized")
 			}
-			httpResponse, err := client.Do(httpRequest)
+
+			httpResponse, err := qe.client.Do(httpRequest)
 			if err != nil {
 				return err
 			}

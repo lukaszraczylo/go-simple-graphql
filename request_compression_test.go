@@ -11,6 +11,7 @@ import (
 
 	assertions "github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
+	"golang.org/x/net/http2"
 )
 
 type RequestCompressionTestSuite struct {
@@ -74,17 +75,18 @@ func (suite *RequestCompressionTestSuite) TestRequestCompression() {
 				httpClient := client.createHttpClient()
 				assert.NotNil(httpClient, "HTTP client should be created")
 
-				// Verify transport settings
-				if strings.HasPrefix(endpoint, "http://") {
-					// HTTP/1.1 transport
-					transport, ok := httpClient.Transport.(*http.Transport)
-					assert.True(ok, "Should be http.Transport for HTTP endpoints")
-					if ok {
-						assert.True(transport.DisableCompression, "DisableCompression should be true for HTTP transport")
+				// Verify transport settings - now using HTTP/2 for all endpoints
+				transport, ok := httpClient.Transport.(*http2.Transport)
+				assert.True(ok, "Should be http2.Transport for all endpoints (h2c for http://, TLS for https://)")
+				if ok {
+					assert.True(transport.DisableCompression, "DisableCompression should be true to prevent trailing garbage")
+					if strings.HasPrefix(endpoint, "http://") {
+						assert.True(transport.AllowHTTP, "AllowHTTP should be true for h2c (HTTP/2 Cleartext)")
+						assert.Nil(transport.TLSClientConfig, "TLSClientConfig should be nil for http:// endpoints")
+					} else {
+						assert.True(transport.AllowHTTP, "AllowHTTP should be true")
+						assert.NotNil(transport.TLSClientConfig, "TLSClientConfig should be set for https:// endpoints")
 					}
-				} else {
-					// HTTP/2 transport - this is where the issue might be
-					// We need to ensure HTTP/2 transport also has compression disabled
 				}
 
 				qe := &QueryExecutor{
