@@ -24,9 +24,11 @@ Therefore, I present you the simple client to which you can copy & paste your gr
 ## Features
 
 * Executing GraphQL queries as they are, without types declaration
-* HTTP2 support!
+* HTTP/2 support for HTTPS endpoints (automatic)
+* HTTP/1.1 for HTTP endpoints (compatible with all servers)
+* Automatic retry with configurable error patterns
 * Support for additional headers
-* Query cache
+* Query cache with compression
 
 ## Usage example
 

@@ -11,7 +11,7 @@ import (
 // Note: http.Transport import is kept for http.ErrUseLastResponse usage in redirect tests
 
 func (suite *Tests) TestBaseClient_createHttpClient() {
-	suite.T().Run("should create HTTP/2 client for http endpoints (h2c)", func(t *testing.T) {
+	suite.T().Run("should create HTTP/1.1 client for http endpoints", func(t *testing.T) {
 		client := NewConnection()
 		client.SetEndpoint("http://example.com/graphql")
 
@@ -20,15 +20,18 @@ func (suite *Tests) TestBaseClient_createHttpClient() {
 		assert.Equal(30*time.Second, httpClient.Timeout)
 		assert.NotNil(httpClient.Transport)
 
-		// Check that it's using HTTP/2 transport with h2c (HTTP/2 Cleartext)
-		transport, ok := httpClient.Transport.(*http2.Transport)
+		// Check that it's using HTTP/1.1 transport (h2c is rarely supported by servers)
+		transport, ok := httpClient.Transport.(*http.Transport)
 		assert.True(ok)
-		assert.True(transport.AllowHTTP)      // Required for h2c
-		assert.Nil(transport.TLSClientConfig) // No TLS for http://
-		assert.Equal(30*time.Second, transport.ReadIdleTimeout)
-		assert.Equal(10*time.Second, transport.PingTimeout)
-		assert.Equal(10*time.Second, transport.WriteByteTimeout)
+		assert.Equal(100, transport.MaxIdleConns)
+		assert.Equal(50, transport.MaxConnsPerHost)
+		assert.Equal(10, transport.MaxIdleConnsPerHost)
+		assert.Equal(30*time.Second, transport.IdleConnTimeout)
+		assert.Equal(10*time.Second, transport.ResponseHeaderTimeout)
+		assert.False(transport.DisableKeepAlives)
 		assert.True(transport.DisableCompression) // Request compression disabled to prevent "trailing garbage" errors
+		assert.Equal(4096, transport.WriteBufferSize)
+		assert.Equal(4096, transport.ReadBufferSize)
 	})
 
 	suite.T().Run("should create HTTP/2 client for https endpoints", func(t *testing.T) {
@@ -91,20 +94,23 @@ func (suite *Tests) TestBaseClient_createHttpClient() {
 }
 
 func (suite *Tests) TestBaseClient_createHttpClient_transportSettings() {
-	suite.T().Run("should configure HTTP/2 transport correctly for http://", func(t *testing.T) {
+	suite.T().Run("should configure HTTP/1.1 transport correctly for http://", func(t *testing.T) {
 		client := NewConnection()
 		client.SetEndpoint("http://example.com/graphql")
 
 		httpClient := client.createHttpClient()
-		transport := httpClient.Transport.(*http2.Transport)
+		transport := httpClient.Transport.(*http.Transport)
 
-		// Verify all HTTP/2 transport settings for h2c
-		assert.True(transport.AllowHTTP)
-		assert.Nil(transport.TLSClientConfig) // No TLS for http://
-		assert.Equal(30*time.Second, transport.ReadIdleTimeout)
-		assert.Equal(10*time.Second, transport.PingTimeout)
-		assert.Equal(10*time.Second, transport.WriteByteTimeout)
+		// Verify all HTTP/1.1 transport settings
+		assert.Equal(100, transport.MaxIdleConns)
+		assert.Equal(50, transport.MaxConnsPerHost)
+		assert.Equal(10, transport.MaxIdleConnsPerHost)
+		assert.Equal(30*time.Second, transport.IdleConnTimeout)
+		assert.Equal(10*time.Second, transport.ResponseHeaderTimeout)
+		assert.False(transport.DisableKeepAlives)
 		assert.True(transport.DisableCompression) // Request compression disabled to prevent "trailing garbage" errors
+		assert.Equal(4096, transport.WriteBufferSize)
+		assert.Equal(4096, transport.ReadBufferSize)
 	})
 
 	suite.T().Run("should configure HTTP/2 transport correctly", func(t *testing.T) {
@@ -125,7 +131,7 @@ func (suite *Tests) TestBaseClient_createHttpClient_transportSettings() {
 }
 
 func (suite *Tests) TestBaseClient_createHttpClient_logging() {
-	suite.T().Run("should log HTTP/2 h2c usage", func(t *testing.T) {
+	suite.T().Run("should log HTTP/1.1 usage", func(t *testing.T) {
 		client := NewConnection()
 		client.SetEndpoint("http://example.com/graphql")
 
