@@ -24,6 +24,9 @@ func (b *BaseClient) createHttpClient() (http_client *http.Client) {
 			DisableCompression:    true, // Disable automatic compression to prevent trailing garbage errors
 			WriteBufferSize:       4096,
 			ReadBufferSize:        4096,
+			// Additional settings for connection health
+			ExpectContinueTimeout: 1 * time.Second,  // Timeout for 100-Continue
+			TLSHandshakeTimeout:   10 * time.Second, // Timeout for TLS handshake
 		}
 
 		http_client = &http.Client{
@@ -47,10 +50,13 @@ func (b *BaseClient) createHttpClient() (http_client *http.Client) {
 		http2Transport := &http2.Transport{
 			AllowHTTP:          true,
 			TLSClientConfig:    tlsClientConfig,
-			ReadIdleTimeout:    30 * time.Second,
-			PingTimeout:        10 * time.Second,
-			WriteByteTimeout:   10 * time.Second,
-			DisableCompression: true, // Disable automatic compression to prevent trailing garbage errors
+			ReadIdleTimeout:    30 * time.Second, // Close idle connections after 30s
+			PingTimeout:        10 * time.Second, // Detect dead connections with PING
+			WriteByteTimeout:   10 * time.Second, // Timeout for write operations
+			DisableCompression: true,             // Disable automatic compression to prevent trailing garbage errors
+			// StrictMaxConcurrentStreams forces the HTTP/2 connection to wait for SETTINGS frame
+			// This helps with connection health detection
+			StrictMaxConcurrentStreams: true,
 		}
 
 		http_client = &http.Client{

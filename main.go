@@ -47,24 +47,39 @@ func NewConnection() (b *BaseClient) {
 	})
 
 	b = &BaseClient{
-		endpoint:         envutil.Getenv("GRAPHQL_ENDPOINT", "https://api.github.com/graphql"),
-		responseType:     envutil.Getenv("GRAPHQL_OUTPUT", "string"),
-		Logger:           logger,
-		cache:            cache.New(time.Duration(envutil.GetInt("GRAPHQL_CACHE_TTL", 5)) * time.Second),
-		cache_global:     envutil.GetBool("GRAPHQL_CACHE_ENABLED", false),
-		retries_enable:   envutil.GetBool("GRAPHQL_RETRIES_ENABLE", false),
-		retries_delay:    time.Duration(envutil.GetInt("GRAPHQL_RETRIES_DELAY", 250) * int(time.Millisecond)),
-		retries_number:   envutil.GetInt("GRAPHQL_RETRIES_NUMBER", 3),
-		retries_patterns: parseRetryPatterns(envutil.Getenv("GRAPHQL_RETRIES_PATTERNS", "postgres,connection,timeout,transaction,could not,temporarily unavailable,deadlock")),
-		minify_queries:   envutil.GetBool("GRAPHQL_MINIFY_QUERIES", true), // Default: enabled for production efficiency
+		endpoint:             envutil.Getenv("GRAPHQL_ENDPOINT", "https://api.github.com/graphql"),
+		responseType:         envutil.Getenv("GRAPHQL_OUTPUT", "string"),
+		Logger:               logger,
+		cache:                cache.New(time.Duration(envutil.GetInt("GRAPHQL_CACHE_TTL", 5)) * time.Second),
+		cache_global:         envutil.GetBool("GRAPHQL_CACHE_ENABLED", false),
+		retries_enable:       envutil.GetBool("GRAPHQL_RETRIES_ENABLE", false),
+		retries_delay:        time.Duration(envutil.GetInt("GRAPHQL_RETRIES_DELAY", 250) * int(time.Millisecond)),
+		retries_number:       envutil.GetInt("GRAPHQL_RETRIES_NUMBER", 3),
+		retries_patterns:     parseRetryPatterns(envutil.Getenv("GRAPHQL_RETRIES_PATTERNS", "postgres,connection,timeout,transaction,could not,temporarily unavailable,deadlock")),
+		minify_queries:       envutil.GetBool("GRAPHQL_MINIFY_QUERIES", true), // Default: enabled for production efficiency
+		pool_warmup_enabled:  envutil.GetBool("GRAPHQL_POOL_WARMUP_ENABLED", false),
+		pool_size:            envutil.GetInt("GRAPHQL_POOL_SIZE", 5),
+		pool_warmup_query:    envutil.Getenv("GRAPHQL_POOL_WARMUP_QUERY", "query{__typename}"),
+		pool_health_interval: time.Duration(envutil.GetInt("GRAPHQL_POOL_HEALTH_INTERVAL", 30)) * time.Second,
+		pool_stop:            make(chan bool, 1),
 	}
 	b.client = b.createHttpClient()
 	b.Logger.Debug(&logging.LogMessage{
 		Message: "Created new GraphQL client connection",
 		Pairs: map[string]interface{}{
-			"values": b,
+			"endpoint":          b.endpoint,
+			"pool_warmup":       b.pool_warmup_enabled,
+			"pool_size":         b.pool_size,
+			"pool_health_check": b.pool_health_interval,
 		},
 	})
+
+	// Initialize connection pool if warmup is enabled
+	if b.pool_warmup_enabled {
+		b.warmupConnectionPool()
+		b.startPoolHealthMonitor()
+	}
+
 	return b
 }
 
