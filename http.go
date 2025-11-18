@@ -18,19 +18,19 @@ func (b *BaseClient) createHttpClient() (http_client *http.Client) {
 			MaxIdleConns:          100,
 			MaxConnsPerHost:       50,
 			MaxIdleConnsPerHost:   10,
-			IdleConnTimeout:       30 * time.Second,
-			ResponseHeaderTimeout: 10 * time.Second,
+			IdleConnTimeout:       60 * time.Second,
+			ResponseHeaderTimeout: 20 * time.Second,
 			DisableKeepAlives:     false,
 			DisableCompression:    true, // Disable automatic compression to prevent trailing garbage errors
 			WriteBufferSize:       4096,
 			ReadBufferSize:        4096,
 			// Additional settings for connection health
-			ExpectContinueTimeout: 1 * time.Second,  // Timeout for 100-Continue
-			TLSHandshakeTimeout:   10 * time.Second, // Timeout for TLS handshake
+			ExpectContinueTimeout: 2 * time.Second,  // Timeout for 100-Continue
+			TLSHandshakeTimeout:   20 * time.Second, // Timeout for TLS handshake
 		}
 
 		http_client = &http.Client{
-			Timeout:   30 * time.Second,
+			Timeout:   60 * time.Second,
 			Transport: httpTransport,
 			CheckRedirect: func(req *http.Request, via []*http.Request) error {
 				return http.ErrUseLastResponse
@@ -50,9 +50,9 @@ func (b *BaseClient) createHttpClient() (http_client *http.Client) {
 		http2Transport := &http2.Transport{
 			AllowHTTP:          true,
 			TLSClientConfig:    tlsClientConfig,
-			ReadIdleTimeout:    30 * time.Second, // Close idle connections after 30s
-			PingTimeout:        10 * time.Second, // Detect dead connections with PING
-			WriteByteTimeout:   10 * time.Second, // Timeout for write operations
+			ReadIdleTimeout:    60 * time.Second, // Close idle connections after 60s
+			PingTimeout:        20 * time.Second, // Detect dead connections with PING
+			WriteByteTimeout:   20 * time.Second, // Timeout for write operations
 			DisableCompression: true,             // Disable automatic compression to prevent trailing garbage errors
 			// StrictMaxConcurrentStreams forces the HTTP/2 connection to wait for SETTINGS frame
 			// This helps with connection health detection
@@ -60,7 +60,7 @@ func (b *BaseClient) createHttpClient() (http_client *http.Client) {
 		}
 
 		http_client = &http.Client{
-			Timeout:   30 * time.Second,
+			Timeout:   60 * time.Second,
 			Transport: http2Transport,
 			CheckRedirect: func(req *http.Request, via []*http.Request) error {
 				return http.ErrUseLastResponse

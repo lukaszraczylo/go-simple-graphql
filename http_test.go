@@ -17,7 +17,7 @@ func (suite *Tests) TestBaseClient_createHttpClient() {
 
 		httpClient := client.createHttpClient()
 		assert.NotNil(httpClient)
-		assert.Equal(30*time.Second, httpClient.Timeout)
+		assert.Equal(60*time.Second, httpClient.Timeout)
 		assert.NotNil(httpClient.Transport)
 
 		// Check that it's using HTTP/1.1 transport (h2c is rarely supported by servers)
@@ -26,8 +26,8 @@ func (suite *Tests) TestBaseClient_createHttpClient() {
 		assert.Equal(100, transport.MaxIdleConns)
 		assert.Equal(50, transport.MaxConnsPerHost)
 		assert.Equal(10, transport.MaxIdleConnsPerHost)
-		assert.Equal(30*time.Second, transport.IdleConnTimeout)
-		assert.Equal(10*time.Second, transport.ResponseHeaderTimeout)
+		assert.Equal(60*time.Second, transport.IdleConnTimeout)
+		assert.Equal(20*time.Second, transport.ResponseHeaderTimeout)
 		assert.False(transport.DisableKeepAlives)
 		assert.True(transport.DisableCompression) // Request compression disabled to prevent "trailing garbage" errors
 		assert.Equal(4096, transport.WriteBufferSize)
@@ -40,7 +40,7 @@ func (suite *Tests) TestBaseClient_createHttpClient() {
 
 		httpClient := client.createHttpClient()
 		assert.NotNil(httpClient)
-		assert.Equal(30*time.Second, httpClient.Timeout)
+		assert.Equal(60*time.Second, httpClient.Timeout)
 		assert.NotNil(httpClient.Transport)
 
 		// Check that it's using HTTP/2 transport
@@ -49,9 +49,9 @@ func (suite *Tests) TestBaseClient_createHttpClient() {
 		assert.True(transport.AllowHTTP)
 		assert.NotNil(transport.TLSClientConfig)
 		assert.True(transport.TLSClientConfig.InsecureSkipVerify)
-		assert.Equal(30*time.Second, transport.ReadIdleTimeout)
-		assert.Equal(10*time.Second, transport.PingTimeout)
-		assert.Equal(10*time.Second, transport.WriteByteTimeout)
+		assert.Equal(60*time.Second, transport.ReadIdleTimeout)
+		assert.Equal(20*time.Second, transport.PingTimeout)
+		assert.Equal(20*time.Second, transport.WriteByteTimeout)
 	})
 
 	suite.T().Run("should handle invalid endpoints", func(t *testing.T) {
@@ -105,8 +105,8 @@ func (suite *Tests) TestBaseClient_createHttpClient_transportSettings() {
 		assert.Equal(100, transport.MaxIdleConns)
 		assert.Equal(50, transport.MaxConnsPerHost)
 		assert.Equal(10, transport.MaxIdleConnsPerHost)
-		assert.Equal(30*time.Second, transport.IdleConnTimeout)
-		assert.Equal(10*time.Second, transport.ResponseHeaderTimeout)
+		assert.Equal(60*time.Second, transport.IdleConnTimeout)
+		assert.Equal(20*time.Second, transport.ResponseHeaderTimeout)
 		assert.False(transport.DisableKeepAlives)
 		assert.True(transport.DisableCompression) // Request compression disabled to prevent "trailing garbage" errors
 		assert.Equal(4096, transport.WriteBufferSize)
@@ -124,9 +124,9 @@ func (suite *Tests) TestBaseClient_createHttpClient_transportSettings() {
 		assert.True(transport.AllowHTTP)
 		assert.NotNil(transport.TLSClientConfig)
 		assert.True(transport.TLSClientConfig.InsecureSkipVerify)
-		assert.Equal(30*time.Second, transport.ReadIdleTimeout)
-		assert.Equal(10*time.Second, transport.PingTimeout)
-		assert.Equal(10*time.Second, transport.WriteByteTimeout)
+		assert.Equal(60*time.Second, transport.ReadIdleTimeout)
+		assert.Equal(20*time.Second, transport.PingTimeout)
+		assert.Equal(20*time.Second, transport.WriteByteTimeout)
 	})
 }
 
