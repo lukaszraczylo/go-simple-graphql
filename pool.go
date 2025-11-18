@@ -236,16 +236,15 @@ func (b *BaseClient) refreshConnectionPool() {
 
 // StopPoolMonitor gracefully stops the pool health monitor
 // Call this when shutting down the application
+// Uses sync.Once to ensure it only executes once, preventing race conditions
 func (b *BaseClient) StopPoolMonitor() {
 	if b.pool_warmup_enabled {
-		b.Logger.Info(&libpack_logger.LogMessage{
-			Message: "Stopping pool monitor",
-			Pairs:   nil,
+		b.pool_stop_once.Do(func() {
+			b.Logger.Info(&libpack_logger.LogMessage{
+				Message: "Stopping pool monitor",
+				Pairs:   nil,
+			})
+			b.pool_stop <- true
 		})
-		select {
-		case b.pool_stop <- true:
-		default:
-			// Channel already has a value or monitor already stopped
-		}
 	}
 }

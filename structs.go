@@ -2,6 +2,7 @@ package gql
 
 import (
 	"net/http"
+	"sync"
 	"time"
 
 	cache "github.com/lukaszraczylo/go-simple-graphql/cache"
@@ -22,6 +23,7 @@ type BaseClient struct {
 	pool_warmup_query    string        // Query to use for warming up connections
 	pool_health_interval time.Duration // Interval for pool health checks
 	pool_stop            chan bool     // Channel to stop pool monitor
+	pool_stop_once       sync.Once     // Ensures StopPoolMonitor is called only once
 	MaxGoRoutines        int
 	cache_global         bool
 	retries_enable       bool
